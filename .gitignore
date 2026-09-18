@@ -36,3 +36,7 @@ src/generated
 /public/fonts/Peyda-*.woff2
 /public/fonts/YekanBakh-*.woff2
 /public/fonts/Dana-*.woff2
+
+.vercel
+.env*
+.vercel
