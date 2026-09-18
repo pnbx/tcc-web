@@ -1,0 +1,40 @@
+import { NextRequest } from "next/server";
+import { getMinecraft } from "@/lib/mc";
+import { requirePermission } from "@/lib/auth";
+import { handleApiError, jsonOk } from "@/lib/api";
+import { prisma } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
+
+// GET /api/server/metrics — real metrics from the adapter; persists a sample
+// so the monitoring charts have history. Nulls mean "not available from this
+// integration" and are rendered as such — never faked.
+export async function GET(_req: NextRequest) {
+  try {
+    await requirePermission("server.metrics");
+    const metrics = await getMinecraft().getMetrics();
+
+    if (metrics) {
+      await prisma.serverMetric.create({
+        data: {
+          playersOnline: metrics.playersOnline,
+          playersMax: metrics.playersMax,
+          tps: metrics.tps,
+          mspt: metrics.mspt,
+          cpuPercent: metrics.cpuPercent,
+          memoryUsedMb: metrics.memoryUsedMb,
+          memoryMaxMb: metrics.memoryMaxMb,
+          diskUsedGb: metrics.diskUsedGb,
+          diskTotalGb: metrics.diskTotalGb,
+          netRxKbps: metrics.netRxKbps,
+          netTxKbps: metrics.netTxKbps,
+          raw: JSON.stringify({ uptimeSec: metrics.uptimeSec, source: metrics.source }),
+        },
+      }).catch(() => undefined);
+    }
+
+    return jsonOk({ metrics, capabilities: getMinecraft().capabilityReport() });
+  } catch (err) {
+    return handleApiError(err);
+  }
+}

@@ -1,0 +1,457 @@
+// TCC Minecraft — database schema (PostgreSQL / Supabase via Prisma 7)
+// Column types are intentionally portable (no native enums/JSON in the old
+// SQLite layout — they are TEXT, validated at the application boundary (zod)).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Identity & RBAC ─────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique // website username; players use their MC name
+  usernameLower String   @unique
+  passwordHash  String? // Argon2id hash — never exposed, never contains MC password
+  displayName   String?
+  avatarUrl     String?
+  bio           String?
+  privacy       String   @default("{}") // JSON: profile visibility flags
+  twoFactorSecret String? // encrypted TOTP secret
+  twoFactorEnabled Boolean @default(false)
+  banned        Boolean  @default(false)
+  banReason     String?
+  deleted       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastLoginAt   DateTime?
+
+  minecraftAccounts MinecraftAccount[]
+  roles             UserRole[]
+  sessions          Session[]
+  loginAttempts     LoginAttempt[]
+  newsArticles      NewsArticle[]      @relation("NewsAuthor")
+  orders            Order[]
+  userProducts      UserProduct[]
+  tierHistory       TierHistory[]
+  tierTests         TierTest[]
+  tierAssignments   PlayerTier[]       @relation("TierAssigner")
+  auditLogs         AuditLog[]
+  apiTokens         ApiToken[]
+
+  @@index([usernameLower])
+}
+
+model MinecraftAccount {
+  id          String   @id @default(cuid())
+  userId      String
+  uuid        String   @unique // offline or online-mode UUID from the server
+  username    String   @unique // canonical capitalization from the server
+  rank        String? // in-game rank granted by the server / store
+  linkCode    String? // one-time code while linking is pending
+  linkExpires DateTime?
+  linkedAt    DateTime?
+  createdAt   DateTime @default(now())
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  playerStatistics PlayerStatistics?
+  playerTiers      PlayerTier[]
+  tierHistory      TierHistory[]
+  tierTests        TierTest[]
+
+  @@index([userId])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // MEMBER, MODERATOR, ADMIN, OWNER, DEVELOPER
+  description String?
+  builtin     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique // e.g. "server.console", "files.edit"
+  description String?
+
+  roles RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedBy String?
+  assignedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  tokenHash    String   @unique // sha-256 of the session token; raw token only ever lives in the cookie
+  userId       String
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  lastSeenAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  username  String // as typed — may not match any user
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+  userId String?
+
+  @@index([username, createdAt])
+  @@index([ip, createdAt])
+}
+
+model ApiToken {
+  id        String    @id @default(cuid())
+  userId    String
+  name      String
+  tokenHash String    @unique
+  scopes    String    @default("") // space-separated permission keys
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────────── Tiers ─────────────────────────────
+
+model TierCategory {
+  id       String  @id @default(cuid())
+  key      String  @unique // e.g. "sword", "axe", "uhc", "nethpot", "vanilla"
+  name     String
+  position Int     @default(0)
+
+  tiers       Tier[]
+  playerTiers PlayerTier[]
+  history     TierHistory[]
+}
+
+model Tier {
+  id            String  @id @default(cuid())
+  categoryId    String
+  name          String // e.g. "HT1"
+  position      Int // ordering within the category, 0 = highest
+  color         String? // hex accent for the badge
+  description   String?
+
+  category     TierCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  players      PlayerTier[]
+  historyFrom  TierHistory[] @relation("FromTier")
+  historyTo    TierHistory[] @relation("ToTier")
+
+  @@unique([categoryId, name])
+  @@index([categoryId, position])
+}
+
+model PlayerTier {
+  id                String   @id @default(cuid())
+  minecraftAccountId String
+  categoryId        String
+  tierId            String
+  region            String? // e.g. EU, NA, AS, IR
+  points            Int?
+  note              String?
+  assignedById      String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  account    MinecraftAccount @relation(fields: [minecraftAccountId], references: [id], onDelete: Cascade)
+  category   TierCategory     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tier       Tier             @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  assignedBy User?            @relation("TierAssigner", fields: [assignedById], references: [id])
+
+  @@unique([minecraftAccountId, categoryId])
+  @@index([categoryId, tierId])
+}
+
+model TierHistory {
+  id                String   @id @default(cuid())
+  minecraftAccountId String
+  categoryId        String
+  fromTierId        String?
+  toTierId          String?
+  note              String?
+  createdById       String?
+  createdAt         DateTime @default(now())
+
+  account   MinecraftAccount @relation(fields: [minecraftAccountId], references: [id], onDelete: Cascade)
+  category  TierCategory     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  fromTier  Tier?            @relation("FromTier", fields: [fromTierId], references: [id], onDelete: SetNull)
+  toTier    Tier?            @relation("ToTier", fields: [toTierId], references: [id], onDelete: SetNull)
+  createdBy User?            @relation(fields: [createdById], references: [id])
+
+  @@index([minecraftAccountId, createdAt])
+  @@index([categoryId])
+}
+
+model TierTest {
+  id                String   @id @default(cuid())
+  minecraftAccountId String
+  categoryId        String
+  testerId          String?
+  scheduledFor      DateTime?
+  completedAt       DateTime?
+  result            String? // PASS, FAIL, PENDING
+  note              String?
+  createdAt         DateTime @default(now())
+
+  account MinecraftAccount @relation(fields: [minecraftAccountId], references: [id], onDelete: Cascade)
+  tester  User?            @relation(fields: [testerId], references: [id])
+
+  @@index([minecraftAccountId])
+}
+
+// ───────────────────────────── News ─────────────────────────────
+
+model NewsCategory {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String
+
+  articles NewsArticle[]
+}
+
+model NewsArticle {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  excerpt     String?
+  content     String // markdown
+  coverImage  String?
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  scheduledFor DateTime?
+  viewCount   Int       @default(0)
+  authorId    String
+  categoryId  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  author   User          @relation("NewsAuthor", fields: [authorId], references: [id])
+  category NewsCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([published, publishedAt])
+  @@index([categoryId])
+}
+
+// ───────────────────────────── Store ─────────────────────────────
+
+model ProductCategory {
+  id   String @id @default(cuid())
+  slug String @unique
+  name String
+
+  products Product[]
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String
+  priceCents  Int // minor units (Toman/Rial via payment provider)
+  currency    String    @default("IRT")
+  imageUrl    String?
+  categoryId  String
+  kind        String    @default("RANK") // RANK, COSMETIC, PREFIX, CHATCOLOR, TAG, OTHER
+  duration    String? // e.g. "30d", "permanent"
+  available   Boolean   @default(true)
+  commands    String    @default("[]") // JSON array of MC commands; {player}, {uuid} placeholders
+  position    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  category     ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems   OrderItem[]
+  userProducts UserProduct[]
+
+  @@index([categoryId, available])
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  orderNumber String   @unique
+  userId      String
+  status      String   @default("PENDING") // PENDING, PAID, FAILED, REFUNDED, CANCELLED
+  totalCents  Int
+  currency    String   @default("IRT")
+  provider    String? // payment provider key
+  providerRef String? // provider-side transaction id
+  createdAt   DateTime @default(now())
+  paidAt      DateTime?
+  refundedAt  DateTime?
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items      OrderItem[]
+  payments   Payment[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model OrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  productId     String
+  quantity      Int      @default(1)
+  unitPriceCents Int
+  targetUsername String? // MC account the product applies to
+
+  order    Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product  Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  orderId     String
+  provider    String
+  providerRef String?
+  amountCents Int
+  currency    String   @default("IRT")
+  status      String   @default("PENDING") // PENDING, VERIFIED, FAILED, REFUNDED
+  verifiedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model UserProduct {
+  id         String    @id @default(cuid())
+  userId     String
+  productId  String
+  orderId    String?
+  grantedBy  String? // command dispatcher log reference
+  grantedAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  active     Boolean   @default(true)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([userId, active])
+}
+
+// ───────────────────────────── Player data ─────────────────────────────
+
+// Aggregated live stats — populated exclusively by the Minecraft integration
+// (bridge push or scheduled sync). Never seeded with fake values.
+model PlayerStatistics {
+  minecraftAccountId String  @id
+  kills              Int     @default(0)
+  deaths             Int     @default(0)
+  wins               Int     @default(0)
+  losses             Int     @default(0)
+  playtimeMinutes    Int     @default(0)
+  lastSeen           DateTime?
+  joinedAt           DateTime?
+  updatedAt          DateTime @updatedAt
+  raw                String? // JSON for extra plugin-provided fields
+
+  account MinecraftAccount @relation(fields: [minecraftAccountId], references: [id], onDelete: Cascade)
+}
+
+model PlayerActivity {
+  id        String   @id @default(cuid())
+  accountId String
+  type      String // JOIN, QUIT, KILL, DEATH, PURCHASE, TIER_CHANGE, RANK_CHANGE
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([accountId, createdAt])
+}
+
+// ───────────────────────────── Server / ops ─────────────────────────────
+
+model ServerMetric {
+  id          String   @id @default(cuid())
+  recordedAt  DateTime @default(now())
+  playersOnline Int?
+  playersMax    Int?
+  tps           Float?
+  mspt          Float?
+  cpuPercent    Float?
+  memoryUsedMb  Float?
+  memoryMaxMb   Float?
+  diskUsedGb    Float?
+  diskTotalGb   Float?
+  netRxKbps     Float?
+  netTxKbps     Float?
+  raw           String? // JSON for extra bridge-provided fields
+
+  @@index([recordedAt])
+}
+
+model ServerEvent {
+  id        String   @id @default(cuid())
+  type      String // START, STOP, RESTART, CRASH, UPDATE
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Setting {
+  key       String   @id
+  value     String // JSON-encoded
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actorName String // denormalized so logs survive user deletion
+  action    String // e.g. "files.edit", "tier.assign", "server.restart"
+  target    String?
+  detail    String? // JSON
+  ip        String?
+  createdAt DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([action])
+}

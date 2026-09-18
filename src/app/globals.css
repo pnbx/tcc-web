@@ -1,0 +1,420 @@
+@import "tailwindcss";
+
+/* ════════════════════════════════════════════════════════════════════
+   TCC Minecraft — Typography & Theme
+   Persian-first design system: black / dark purple / pink.
+   Font slots are CSS variables so admins can remap them from settings
+   without touching components. Commercial fonts (Peyda, Yekan Bakh,
+   Dana) are declared but load only if the operator drops licensed
+   woff2 files into public/fonts — nothing is downloaded from CDNs.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── Vazirmatn — variable (wght 100–900) ── */
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-VF.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F, U+0020-007E, U+00A0-00FF;
+}
+
+/* ── Estedad — variable (wght 100–900), arabic + latin subsets ── */
+@font-face {
+  font-family: "Estedad";
+  src: url("/fonts/Estedad-VF.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200F;
+}
+@font-face {
+  font-family: "Estedad";
+  src: url("/fonts/Estedad-latin-VF.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-00FF;
+}
+
+/* ── Commercial slots: activated only when the file exists in public/fonts ──
+   The operator drops licensed woff2 files (Peyda-Regular.woff2, Dana-Bold.woff2,
+   etc. — any weights they licensed) and adds matching @font-face blocks in
+   fonts.css (auto-created template below). Until then the stack falls through
+   to Vazirmatn/Estedad gracefully. */
+@font-face {
+  font-family: "Peyda";
+  src: url("/fonts/Peyda-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Peyda";
+  src: url("/fonts/Peyda-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Yekan Bakh";
+  src: url("/fonts/YekanBakh-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Yekan Bakh";
+  src: url("/fonts/YekanBakh-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dana";
+  src: url("/fonts/Dana-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Dana";
+  src: url("/fonts/Dana-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* ── Font slot variables (remappable from admin settings) ── */
+:root {
+  --font-display: "Dana", "Peyda", "Estedad", "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Peyda", "Dana", "Estedad", "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: "Peyda", "Vazirmatn", "Estedad", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Vazirmatn", "Estedad", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* ── TCC palette: black / deep purple surfaces / pink accent ── */
+  --c-bg: #0a0812;
+  --c-bg-raised: #100d1c;
+  --c-surface: #16121f;
+  --c-surface-2: #1c1728;
+  --c-border: #241e33;
+  --c-border-strong: #332a47;
+  --c-text: #ece9f4;
+  --c-text-dim: #a9a3bd;
+  --c-text-faint: #6e6885;
+  --c-purple: #8b5cf6;
+  --c-purple-deep: #5b21b6;
+  --c-pink: #f472b6;
+  --c-pink-strong: #ec4899;
+  --c-green: #34d399;
+  --c-red: #f87171;
+  --c-amber: #fbbf24;
+
+  --radius-card: 10px;
+  --radius-btn: 8px;
+}
+
+/* Font slot remapping happens via an injected override block (see layout.tsx):
+   e.g. :root { --font-display: "Yekan Bakh", ... } produced from DB settings. */
+
+html {
+  background: var(--c-bg);
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-body);
+  background:
+    radial-gradient(1100px 500px at 85% -10%, rgba(91, 33, 182, 0.14), transparent 60%),
+    radial-gradient(900px 420px at 10% 110%, rgba(236, 72, 153, 0.05), transparent 55%),
+    var(--c-bg);
+  background-attachment: fixed;
+  color: var(--c-text);
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(236, 72, 153, 0.35);
+}
+
+/* Latin/technical content keeps an LTR, mono-capable context even in RTL pages */
+.ltr, [dir="ltr"] {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+code, pre, .mono {
+  font-family: var(--font-mono);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Numbers stay Latin-consistent inside Persian text */
+.num {
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ── Typography helper classes ── */
+.font-display { font-family: var(--font-display); }
+.font-heading { font-family: var(--font-heading); }
+.font-ui { font-family: var(--font-ui); }
+.font-body { font-family: var(--font-body); }
+
+h1, h2, h3 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
+}
+
+/* ── Surfaces ── */
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-card);
+}
+
+.card-raised {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-card);
+}
+
+.hairline {
+  border-color: var(--c-border);
+}
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-btn);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, color 0.15s ease;
+  user-select: none;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--c-pink-strong);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) { background: #db2777; }
+
+.btn-purple {
+  background: var(--c-purple-deep);
+  color: #fff;
+}
+.btn-purple:hover:not(:disabled) { background: #6d28d9; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--c-text);
+  border-color: var(--c-border-strong);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--c-surface-2); border-color: var(--c-text-faint); }
+
+.btn-danger {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--c-red);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+.btn-danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.2); }
+
+/* ── Inputs ── */
+.input, .select, .textarea {
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  width: 100%;
+  background: var(--c-bg-raised);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-btn);
+  padding: 0.5rem 0.75rem;
+  color: var(--c-text);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--c-purple);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
+.input::placeholder, .textarea::placeholder { color: var(--c-text-faint); }
+
+.label {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--c-text-dim);
+  margin-bottom: 0.3rem;
+}
+
+/* ── Badges & chips ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--c-border-strong);
+  background: var(--c-surface-2);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+}
+.badge-pink { color: var(--c-pink); border-color: rgba(236, 72, 153, 0.4); background: rgba(236, 72, 153, 0.08); }
+.badge-purple { color: #c4b5fd; border-color: rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.1); }
+.badge-green { color: var(--c-green); border-color: rgba(52, 211, 153, 0.4); background: rgba(52, 211, 153, 0.08); }
+.badge-red { color: var(--c-red); border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.08); }
+.badge-amber { color: var(--c-amber); border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.08); }
+
+/* ── Tier badges: filled top tiers, outlined lower tiers ── */
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  min-width: 3rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--c-border-strong);
+  direction: ltr;
+}
+.tier-badge.tier-elite {
+  background: linear-gradient(135deg, var(--c-purple-deep), var(--c-pink-strong));
+  border-color: transparent;
+  color: #fff;
+}
+.tier-badge.tier-high {
+  background: rgba(139, 92, 246, 0.16);
+  border-color: rgba(139, 92, 246, 0.45);
+  color: #c4b5fd;
+}
+.tier-badge.tier-mid {
+  background: rgba(139, 92, 246, 0.07);
+  color: var(--c-text-dim);
+}
+.tier-badge.tier-low {
+  background: transparent;
+  color: var(--c-text-faint);
+}
+
+/* ── Tables ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+}
+.table th {
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--c-text-faint);
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--c-border-strong);
+  white-space: nowrap;
+}
+.table td {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--c-border);
+  color: var(--c-text-dim);
+}
+.table tbody tr:hover td { background: rgba(139, 92, 246, 0.04); color: var(--c-text); }
+
+/* ── Nav ── */
+.nav-link {
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--c-text-dim);
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.nav-link:hover { color: var(--c-text); background: var(--c-surface-2); }
+.nav-link.active { color: var(--c-pink); background: rgba(236, 72, 153, 0.08); }
+
+/* ── Panels (dashboard sidebars) ── */
+.panel-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--c-text-dim);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+.panel-nav-link:hover { color: var(--c-text); background: var(--c-surface-2); }
+.panel-nav-link.active {
+  color: var(--c-text);
+  background: var(--c-surface-2);
+  border-color: var(--c-border-strong);
+}
+
+/* ── Skeleton loading ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--c-surface) 25%, var(--c-surface-2) 50%, var(--c-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Subtle entrance for page content ── */
+.fade-up {
+  animation: fadeUp 0.35s ease both;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── Scrollbars (webkit) ── */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--c-bg); }
+::-webkit-scrollbar-thumb { background: var(--c-border-strong); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #453a5e; }
+
+/* ── Console ── */
+.console {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  direction: ltr;
+  text-align: left;
+  background: #07060c;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-card);
+}
+.console-line { padding: 0 0.75rem; white-space: pre-wrap; word-break: break-word; }
+.console-line:hover { background: rgba(139, 92, 246, 0.05); }
+.console-info { color: #b6b0c8; }
+.console-warn { color: var(--c-amber); }
+.console-error { color: var(--c-red); }
+.console-debug { color: var(--c-text-faint); }
+.console-ts { color: var(--c-text-faint); user-select: all; }
+
+/* ── Head render fix: keep number ranges and IP+port readable ── */
+.ip-address {
+  font-family: var(--font-mono);
+  direction: ltr;
+  unicode-bidi: isolate;
+  letter-spacing: 0.03em;
+}

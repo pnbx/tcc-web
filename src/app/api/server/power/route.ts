@@ -1,0 +1,58 @@
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import { getMinecraft } from "@/lib/mc";
+import { requirePermission } from "@/lib/auth";
+import { handleApiError, jsonError, jsonOk, parseBody } from "@/lib/api";
+import { audit } from "@/lib/audit";
+import { prisma } from "@/lib/db";
+
+const schema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("start"), confirm: z.boolean() }),
+  z.object({ action: z.literal("stop"), confirm: z.boolean(), force: z.boolean().optional() }),
+  z.object({ action: z.literal("restart"), confirm: z.boolean() }),
+  z.object({ action: z.literal("broadcast"), message: z.string().min(1).max(300) }),
+]);
+
+// POST /api/server/power — destructive actions require confirm:true (the UI
+// shows a confirmation dialog) and are audited with the actor identity.
+export async function POST(req: NextRequest) {
+  try {
+    const body = await parseBody(req, schema);
+    const ip = req.headers.get("x-forwarded-for");
+
+    if (body.action === "broadcast") {
+      const auth = await requirePermission("server.broadcast");
+      const res = await getMinecraft().broadcast(body.message);
+      await audit({ actorId: auth.user.id, actorName: auth.user.username, action: "server.broadcast", target: body.message, ip });
+      return jsonOk(res);
+    }
+
+    const perm = body.action === "start" ? "server.start" : body.action === "stop" ? "server.stop" : "server.restart";
+    const auth = await requirePermission(perm);
+    if (!body.confirm) {
+      return jsonError("برای این عملیات، تأیید صریح لازم است.", 400);
+    }
+
+    const mc = getMinecraft();
+    const res =
+      body.action === "start"
+        ? await mc.startServer()
+        : body.action === "stop"
+          ? await mc.stopServer(body.force ?? false)
+          : await mc.restartServer();
+
+    await prisma.serverEvent.create({
+      data: { type: body.action.toUpperCase(), detail: `by ${auth.user.username}` },
+    });
+    await audit({
+      actorId: auth.user.id,
+      actorName: auth.user.username,
+      action: `server.${body.action}`,
+      detail: { ok: res.ok, message: res.message },
+      ip,
+    });
+    return jsonOk(res);
+  } catch (err) {
+    return handleApiError(err);
+  }
+}
