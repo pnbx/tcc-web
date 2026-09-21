@@ -129,7 +129,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ action: str
           plain: designed.design.plain,
           priceToman: product.price,
           productSlug: product.slug,
-          buyUrl: `${process.env.PAYMENT_PROVIDER_CALLBACK_BASE || "https://site.tccmc.ir"}/store/prefix?design=${encodeURIComponent(designed.design.miniMessage)}`,
+          buyUrl: `${process.env.PAYMENT_PROVIDER_CALLBACK_BASE || "https://site.tccmc.ir"}/store/prefix?q=${encodeURIComponent(q)}`,
         });
       }
 
