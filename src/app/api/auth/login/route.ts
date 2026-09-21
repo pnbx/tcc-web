@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       roleNames.includes("OWNER") ? "/owner"
       : roleNames.includes("DEVELOPER") ? "/developer"
       : roleNames.includes("ADMIN") ? "/admin"
+      : roleNames.includes("TESTER") ? "/tester"
       : "/dashboard";
 
     const res = jsonOk({ username: user.username, needTotp: false, redirectTo, roles: roleNames });

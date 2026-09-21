@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
-import { handleApiError, jsonOk, parseBody } from "@/lib/api";
+import { handleApiError, jsonError, jsonOk, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
 
 const schema = z.object({
@@ -27,10 +27,12 @@ export async function POST(req: NextRequest) {
     const category = await prisma.tierCategory.findUnique({ where: { key: body.categoryKey } });
     if (!category) return handleApiError(new Error("category not found"));
 
+    // Real tier names are lowercase (ht1…lt5) — match case-insensitively so both
+    // the site and the in-game /settier naming work.
     const tier = await prisma.tier.findFirst({
-      where: { categoryId: category.id, name: body.tierName.toUpperCase() },
+      where: { categoryId: category.id, name: { equals: body.tierName.trim(), mode: "insensitive" } },
     });
-    if (!tier) return handleApiError(new Error("tier not found"));
+    if (!tier) return jsonError(`تیر «${body.tierName}» در حالت ${body.categoryKey} پیدا نشد.`, 404);
 
     const previous = await prisma.playerTier.findUnique({
       where: { minecraftAccountId_categoryId: { minecraftAccountId: account.id, categoryId: category.id } },
