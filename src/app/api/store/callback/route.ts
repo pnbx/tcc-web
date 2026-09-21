@@ -38,8 +38,9 @@ export async function GET(req: NextRequest) {
       return resultRedirect(req, orderNumber);
     };
 
-    // Zibal signals the user abandoned/cancelled with success=0 — no point verifying.
+    // Cancellation signals: Zibal sends success=0, Zarinpal sends Status=NOK.
     if (url.searchParams.get("success") === "0") return await fail();
+    if ((url.searchParams.get("Status") ?? "").toUpperCase() === "NOK") return await fail();
 
     const provider = getPaymentProvider();
     const ref =

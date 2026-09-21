@@ -35,7 +35,95 @@ class NullProvider implements PaymentProvider {
 export function getPaymentProvider(): PaymentProvider {
   const key = process.env.PAYMENT_PROVIDER || "none";
   if (key === "zibal") return new ZibalProvider(process.env.PAYMENT_PROVIDER_MERCHANT_ID || "");
+  if (key === "zarinpal") {
+    return new ZarinpalProvider(
+      process.env.ZARINPAL_MERCHANT_ID || process.env.PAYMENT_PROVIDER_MERCHANT_ID || "",
+      process.env.ZARINPAL_SANDBOX === "true",
+    );
+  }
   return new NullProvider();
+}
+
+// ── Zarinpal (payment.zarinpal.com, API v4) ─────────────────────────────────
+// Same redirect flow as the sibling Azura project, which is proven in
+// production: request → Authority → StartPay page → verify. Unlike Zibal there
+// is no merchant IP allowlist, so it works from any host (Vercel included).
+const ZARINPAL_PROD = "https://payment.zarinpal.com";
+const ZARINPAL_SANDBOX_BASE = "https://sandbox.zarinpal.com";
+const ZARINPAL_START_PROD = "https://www.zarinpal.com";
+
+export class ZarinpalProvider implements PaymentProvider {
+  readonly key = "zarinpal";
+
+  constructor(
+    private readonly merchantId: string,
+    private readonly sandbox = false,
+  ) {}
+
+  private apiBase(): string {
+    return this.sandbox ? ZARINPAL_SANDBOX_BASE : ZARINPAL_PROD;
+  }
+
+  private startBase(): string {
+    return this.sandbox ? ZARINPAL_SANDBOX_BASE : ZARINPAL_START_PROD;
+  }
+
+  private headers() {
+    return { "Content-Type": "application/json", "User-Agent": "TCC-Web/1.0 (+https://site.tccmc.ir)" };
+  }
+
+  async createPayment(input: {
+    orderNumber: string;
+    amountCents: number;
+    currency: string;
+    description: string;
+    callbackUrl: string;
+  }): Promise<{ redirectUrl: string; providerRef?: string }> {
+    if (!this.merchantId) {
+      throw new Error("درگاه زرین‌پال پیکربندی نشده است. ZARINPAL_MERCHANT_ID را تنظیم کنید.");
+    }
+    const res = await fetch(`${this.apiBase()}/pg/v4/payment/request.json`, {
+      method: "POST",
+      headers: this.headers(),
+      cache: "no-store",
+      body: JSON.stringify({
+        merchant_id: this.merchantId,
+        amount: input.amountCents, // DB amounts are already Toman
+        currency: "IRT",
+        callback_url: input.callbackUrl,
+        description: input.description,
+      }),
+    });
+    const data = (await res.json()) as {
+      data?: { code?: number; message?: string; authority?: string };
+      errors?: { code?: number; message?: string } | unknown[];
+    };
+    const code = data.data?.code;
+    if (code !== 100 || !data.data?.authority) {
+      const message = data.data?.message ?? (Array.isArray(data.errors) ? "بدون توضیح" : (data.errors?.message ?? "بدون توضیح"));
+      throw new Error(`زرین‌پال: درخواست پرداخت رد شد (کد ${code ?? "?"} — ${message})`);
+    }
+    return {
+      redirectUrl: `${this.startBase()}/pg/StartPay/${data.data.authority}`,
+      providerRef: data.data.authority,
+    };
+  }
+
+  async verifyPayment(input: { providerRef: string; amountCents: number }): Promise<{ verified: boolean; raw?: unknown }> {
+    if (!this.merchantId || !input.providerRef) return { verified: false };
+    const res = await fetch(`${this.apiBase()}/pg/v4/payment/verify.json`, {
+      method: "POST",
+      headers: this.headers(),
+      cache: "no-store",
+      body: JSON.stringify({ merchant_id: this.merchantId, amount: input.amountCents, authority: input.providerRef }),
+    });
+    const data = (await res.json()) as { data?: { code?: number; ref_id?: number; amount?: number }; errors?: unknown };
+    // 100 = verified now, 101 = already verified (duplicate callback).
+    const code = data.data?.code;
+    const verified = code === 100 || code === 101;
+    const amountOk = data.data?.amount == null || data.data.amount === input.amountCents;
+    return { verified: verified && amountOk, raw: data };
+  }
 }
 
 // ── Zibal (gateway.zibal.ir) ────────────────────────────────────────────────
