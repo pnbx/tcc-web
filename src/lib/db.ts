@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 function createClient() {
-  const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+  const connectionString = process.env.SUPABASE_POOLER_URL || process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
   if (!connectionString || !connectionString.startsWith("postgres")) {
     throw new Error(
       "SUPABASE_DB_URL تنظیم نشده است. رشته‌ی اتصال PostgreSQL پروژه‌ی Supabase را در .env بگذار.",

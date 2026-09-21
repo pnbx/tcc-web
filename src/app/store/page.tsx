@@ -37,9 +37,24 @@ export default async function StorePage({ searchParams }: { searchParams: Promis
       <SiteHeader authed={!!auth} />
       <main className="max-w-6xl mx-auto px-4 py-10 fade-up">
         <h1 className="font-display text-3xl font-black mb-2">استور TCC</h1>
-        <p className="text-sm text-[var(--c-text-dim)] mb-8">
+        <p className="text-sm text-[var(--c-text-dim)] mb-6">
           پس از پرداخت تأییدشده، محصولات به‌صورت خودکار روی سرور اعمال می‌شوند.
         </p>
+
+        {/* AI prefix studio: design and preview for free, pay only when you like it */}
+        <Link href="/store/prefix" className="block cta-banner p-5 mb-8 hover:-translate-y-0.5 transition-transform">
+          <div className="flex items-center gap-4">
+            <span className="text-3xl">🎨</span>
+            <span className="min-w-0">
+              <span className="block font-heading font-bold mb-1">استودیوی پریفیکس — خودت طراحی کن</span>
+              <span className="block text-sm text-[var(--c-text-dim)] leading-6">
+                توضیح بده چه پیشوندی می‌خواهی؛ هوش مصنوعی آن را می‌سازد و <b>پیش‌نمایش واقعی در چت بازی</b> را می‌بینی.
+                رایگان امتحان کن، فقط وقتی خوشت آمد بخر.
+              </span>
+            </span>
+            <span className="ms-auto badge badge-pink shrink-0 hidden sm:inline-flex">رایگان امتحان کن ←</span>
+          </div>
+        </Link>
 
         <div className="flex flex-wrap gap-2 mb-8">
           <Link href="/store" className={`badge ${!category ? "badge-pink" : ""}`}>همه</Link>
