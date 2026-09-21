@@ -40,6 +40,9 @@ async function FontSlotOverrides() {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fa" dir="rtl">
+      <head>
+        <meta name="referrer" content="no-referrer" />
+      </head>
       <body>
         <FontSlotOverrides />
         {children}
