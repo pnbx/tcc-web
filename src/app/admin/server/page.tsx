@@ -1,5 +1,6 @@
 import { getAuth, hasPermission } from "@/lib/auth";
 import { getCachedStatus, getMinecraft, MC_HOST } from "@/lib/mc";
+import { readMetricSnapshot } from "@/lib/mc/agent";
 import { ServerStatusCard } from "./status-card";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export default async function AdminServerPage() {
 
   const [status, metrics] = await Promise.all([
     getCachedStatus(),
-    hasPermission(auth.permissions, "server.metrics") ? getMinecraft().getMetrics() : Promise.resolve(null),
+    hasPermission(auth.permissions, "server.metrics") ? (await readMetricSnapshot()) ?? (await getMinecraft().getMetrics()) : Promise.resolve(null),
   ]);
 
   const caps = getMinecraft().capabilityReport();

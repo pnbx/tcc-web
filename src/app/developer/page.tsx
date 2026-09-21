@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getCachedStatus, getMinecraft, MC_HOST } from "@/lib/mc";
+import { readMetricSnapshot } from "@/lib/mc/agent";
 import { formatNumber } from "@/components/format";
 import { isFileSandboxConfigured } from "@/lib/mc/files-server";
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getAuth, hasPermission } from "@/lib/auth";
 import { getCachedStatus, getMinecraft, MC_HOST } from "@/lib/mc";
+import { readMetricSnapshot } from "@/lib/mc/agent";
 import { formatNumber, formatDateTime } from "@/components/format";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export default async function OwnerOverview() {
   await getAuth();
   const [status, metrics, events, audit] = await Promise.all([
     getCachedStatus(),
-    getMinecraft().getMetrics(),
+    (await readMetricSnapshot()) ?? (await getMinecraft().getMetrics()),
     prisma.serverEvent.findMany({ orderBy: { createdAt: "desc" }, take: 8 }),
     prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 10 }),
   ]);

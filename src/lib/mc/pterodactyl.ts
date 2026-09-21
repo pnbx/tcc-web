@@ -53,6 +53,8 @@ export class PterodactylAdapter implements MinecraftServerAdapter {
   private async api<T>(path: string, init?: RequestInit & { raw?: boolean }): Promise<{ status: number; json: T | null; text: string }> {
     const res = await fetch(`${this.panelUrl}/api/client/servers/${this.serverId}${path}`, {
       ...init,
+      // the panel is unreachable from some networks (Vercel): never hang the page
+      signal: AbortSignal.timeout(2500),
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         Accept: "application/json",

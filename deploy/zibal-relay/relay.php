@@ -17,7 +17,7 @@
  * through untouched. Only POST is accepted.
  */
 
-$SECRET = getenv('ZIBAL_RELAY_SECRET') ?: '1ff94715113d75b4e67c8951b66abd792503e05b617f1b66';
+$SECRET = getenv('ZIBAL_RELAY_SECRET') ?: '';
 
 $ALLOWED = [
     'request' => 'https://gateway.zibal.ir/v1/request',
