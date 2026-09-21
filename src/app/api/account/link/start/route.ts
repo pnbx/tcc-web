@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     return jsonOk({
       code,
       expiresAt: expires.toISOString(),
-      instruction: `در بازی وارد شوید و دستور /tccweb link ${code} را اجرا کنید.`,
+      instruction: `در بازی دستور /site connect ${code} را بزن (معادل: /tccweb connect ${code}).`,
     });
   } catch (err) {
     return handleApiError(err);
