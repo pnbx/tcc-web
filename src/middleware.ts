@@ -16,7 +16,7 @@ export function middleware(req: NextRequest) {
       "default-src 'self'",
       "img-src 'self' data: https://minotar.net https://crafatar.com https://mc-heads.net https://*.tccmc.ir",
       "style-src 'self' 'unsafe-inline'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js dev needs inline/eval; tighten with nonces in prod hardening
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org", // Next.js dev needs inline/eval; tighten with nonces in prod hardening
       "connect-src 'self' ws: wss:",
       "font-src 'self'",
       "frame-ancestors 'none'",
