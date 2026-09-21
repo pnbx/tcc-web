@@ -328,6 +328,8 @@ model Order {
   @@index([status])
 }
 
+// A bought product may carry its own fulfilment commands: the AI prefix studio
+// writes the exact LuckPerms command for the design the buyer approved.
 model OrderItem {
   id            String   @id @default(cuid())
   orderId       String
@@ -335,6 +337,7 @@ model OrderItem {
   quantity      Int      @default(1)
   unitPriceCents Int
   targetUsername String? // MC account the product applies to
+  customCommands String? // JSON array; the prefix studio stores the exact command for the approved design
 
   order    Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product  Product @relation(fields: [productId], references: [id])

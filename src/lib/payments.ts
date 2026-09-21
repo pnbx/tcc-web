@@ -266,7 +266,8 @@ export async function dispatchProductCommands(input: {
   for (const item of order.items) {
     let commands: string[] = [];
     try {
-      commands = JSON.parse(item.product.commands) as string[];
+      // the prefix studio stores the exact command for the approved design
+      commands = JSON.parse(item.customCommands ?? item.product.commands) as string[];
     } catch {
       commands = [];
     }

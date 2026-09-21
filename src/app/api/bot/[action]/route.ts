@@ -7,6 +7,7 @@ import { getCachedStatus, MC_ADDRESS, MC_HOST, MC_PORT } from "@/lib/mc";
 import { agentOnline, readConsoleFeed, readMetricSnapshot } from "@/lib/mc/agent";
 import { enqueueCommand } from "@/lib/mc/queue";
 import { audit } from "@/lib/audit";
+import { designPrefix, PREFIX_PRODUCTS } from "@/lib/prefix-studio";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ function authorized(req: NextRequest): boolean {
 
 const commandSchema = z.object({ command: z.string().min(1).max(300) });
 
-type Action = "status" | "console" | "command" | "tiers" | "orders" | "news" | "players" | "overview" | "adminmode";
+type Action = "status" | "console" | "command" | "tiers" | "orders" | "news" | "players" | "overview" | "adminmode" | "prefix";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ action: string }> }) {
   try {
@@ -111,6 +112,24 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ action: str
           paidOrders,
           revenueToman: revenue._sum.totalCents ?? 0,
           latestNews,
+        });
+      }
+
+      case "prefix": {
+        // ?q=<the player's request in Persian> → a designed prefix + price tier
+        const q = url.searchParams.get("q") ?? "";
+        if (q.trim().length < 3) return jsonError("q required", 400);
+        const designed = await designPrefix(q);
+        if (!designed.ok) return jsonError(designed.error, 503);
+        const product = PREFIX_PRODUCTS[designed.design.tier];
+        return jsonOk({
+          tier: designed.design.tier,
+          label: designed.design.label,
+          miniMessage: designed.design.miniMessage,
+          plain: designed.design.plain,
+          priceToman: product.price,
+          productSlug: product.slug,
+          buyUrl: `${process.env.PAYMENT_PROVIDER_CALLBACK_BASE || "https://site.tccmc.ir"}/store/prefix?design=${encodeURIComponent(designed.design.miniMessage)}`,
         });
       }
 

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { handleApiError, jsonError, jsonOk, parseBody, guardRateLimit } from "@/lib/api";
 import { getPaymentProvider, generateOrderNumber } from "@/lib/payments";
+import { sanitizeMiniMessage, prefixCommand } from "@/lib/prefix-studio";
 import { getSettings } from "@/lib/settings";
 
 const schema = z.object({
@@ -12,6 +13,8 @@ const schema = z.object({
     .min(1)
     .max(20),
   targetUsername: z.string().max(16).optional(),
+  // AI prefix studio: the approved MiniMessage design, sanitised server-side
+  customPrefix: z.string().max(200).optional(),
 });
 
 // POST /api/store/checkout — creates the order and a PENDING payment, then
@@ -32,8 +35,9 @@ export async function POST(req: NextRequest) {
       return jsonError("برخی محصولات نامعتبر یا ناموجود هستند.", 400);
     }
 
+    const customPrefix = body.customPrefix ? sanitizeMiniMessage(body.customPrefix) : null;
     let totalCents = 0;
-    const orderItems: { productId: string; quantity: number; unitPriceCents: number; targetUsername: string | null }[] = [];
+    const orderItems: { productId: string; quantity: number; unitPriceCents: number; targetUsername: string | null; customCommands: string | null }[] = [];
     for (const item of body.items) {
       const p = products.find((x) => x.slug === item.slug)!;
       totalCents += p.priceCents * item.quantity;
@@ -42,6 +46,7 @@ export async function POST(req: NextRequest) {
         quantity: item.quantity,
         unitPriceCents: p.priceCents,
         targetUsername: body.targetUsername ?? null,
+        customCommands: customPrefix ? JSON.stringify([prefixCommand({ miniMessage: customPrefix })]) : null,
       });
     }
 
