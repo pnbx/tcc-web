@@ -29,6 +29,15 @@ export async function GET(req: NextRequest) {
   if (target.protocol !== "https:" || !ALLOWED_HOSTS.has(target.host)) {
     return NextResponse.json({ ok: false, error: "payment host not allowed" }, { status: 400 });
   }
+  // Two guarantees for the gateway's referrer check:
+  //  - no-referrer on this response means the follow-up request carries no
+  //    referrer at all (which Zibal accepts), so a stale/odd referrer from
+  //    whatever page the buyer came from can never leak through;
+  //  - when a browser does send one, it is this azuraai.ir origin, which the
+  //    merchant is registered for.
   // The browser carries this page's origin (an azuraai.ir host) as the referrer.
-  return NextResponse.redirect(target.toString(), 302);
+  const res = NextResponse.redirect(target.toString(), 302);
+  res.headers.set("Referrer-Policy", "no-referrer");
+  res.headers.set("Cache-Control", "no-store");
+  return res;
 }
