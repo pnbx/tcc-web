@@ -14,9 +14,11 @@ export async function GET(_req: NextRequest) {
   try {
     await requirePermission("server.metrics");
     // Pushed metrics (plugin) win when the game host cannot be reached from here.
-    const metrics = (await readMetricSnapshot()) ?? (await getMinecraft().getMetrics());
+    const pushed = await readMetricSnapshot();
+    const metrics = pushed ?? (await getMinecraft().getMetrics());
 
-    if (metrics) {
+    // A pushed snapshot already lives in the table — only adapter samples are stored here.
+    if (metrics && !pushed) {
       await prisma.serverMetric.create({
         data: {
           playersOnline: metrics.playersOnline,
