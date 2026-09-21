@@ -85,10 +85,12 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Send the buyer through our azuraai.ir host first: the gateway validates
-      // the referrer domain, and the merchant is registered for azuraai.ir.
-      const hopOrigin = new URL(callbackBase).origin;
-      const redirectUrl = `${hopOrigin}/pay/start?to=${encodeURIComponent(session.redirectUrl)}`;
+      // Send the buyer through an azuraai.ir host first: the gateway validates the
+      // referrer domain, and the merchant is registered for azuraai.ir.
+      // PAYMENT_HOP_URL overrides the hop (e.g. https://azuraai.ir/payment/tcc when a
+      // Cloudflare redirect rule forwards it to this app).
+      const hopBase = process.env.PAYMENT_HOP_URL?.trim() || `${new URL(callbackBase).origin}/pay/start`;
+      const redirectUrl = `${hopBase}${hopBase.includes("?") ? "&" : "?"}to=${encodeURIComponent(session.redirectUrl)}`;
 
       return jsonOk({ orderNumber: order.orderNumber, redirectUrl });
     } catch (err) {
