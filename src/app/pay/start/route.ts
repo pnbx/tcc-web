@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="referrer" content="no-referrer" />
+<meta name="referrer" content="origin" />
 <meta http-equiv="refresh" content="0;url=${url}" />
 <title>در حال انتقال به درگاه پرداخت…</title>
 <style>
@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
-      "Referrer-Policy": "no-referrer",
+      // send this azuraai.ir origin as the referrer — Zibal requires a non-empty referrer that matches the merchant domain
+      "Referrer-Policy": "origin",
       "Cache-Control": "no-store, max-age=0",
     },
   });
