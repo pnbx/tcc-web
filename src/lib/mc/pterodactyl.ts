@@ -242,17 +242,22 @@ export class PterodactylAdapter implements MinecraftServerAdapter {
   }
 
   async writeFile(path: string, content: string): Promise<{ ok: boolean }> {
-    const res = await fetch(`${this.panelUrl}/api/client/servers/${this.serverId}/files/write`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
+    // This panel takes the target path as a query parameter and the raw file
+    // body verbatim (a JSON envelope would be written into the file as-is).
+    const res = await fetch(
+      `${this.panelUrl}/api/client/servers/${this.serverId}/files/write?file=${encodeURIComponent(path)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          Accept: "application/json",
+          "Content-Type": "text/plain; charset=utf-8",
+        },
+        cache: "no-store",
+        body: content,
       },
-      cache: "no-store",
-      body: JSON.stringify({ file: path, raw: content }),
-    });
-    if (res.status === 204) return { ok: true };
+    );
+    if (res.status === 204 || res.status === 200) return { ok: true };
     const body = (await res.json().catch(() => null)) as { errors?: { detail?: string }[] } | null;
     throw new Error(body?.errors?.[0]?.detail ?? `panel HTTP ${res.status}`);
   }

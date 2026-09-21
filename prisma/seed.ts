@@ -115,16 +115,16 @@ async function seedStore() {
     slug: string; name: string; cat: string; desc: string; price: number; kind: string; duration?: string; commands: string[];
   }[] = [
     {
-      slug: "rank-warrior", name: "رنک Warrior", cat: "ranks",
-      desc: "رنک پایه با رنگ نام اختصاصی، دستور /hat و اسلات سرور در شلوغی.",
+      slug: "rank-warrior", name: "رنک Mystic", cat: "ranks",
+      desc: "رنک داناتور Mystic — پیشوند اختصاصی در چت و دسترسی به کیت‌های ویژه.",
       price: 350000, kind: "RANK", duration: "permanent",
-      commands: ["lp user {uuid} parent add warrior"],
+      commands: ["lp user {uuid} parent add mystic"],
     },
     {
-      slug: "rank-elite", name: "رنک Elite", cat: "ranks",
-      desc: "دسترسی به سرور VIP، کیت اختصاصی، /fly در لابی و ۲ برابرXP.",
+      slug: "rank-elite", name: "رنک Amethyst", cat: "ranks",
+      desc: "بالاترین رنک داناتور شبکه — پیشوند Amethyst، کیت‌های ویژه و دسترسی کامل به مزایا.",
       price: 850000, kind: "RANK", duration: "permanent",
-      commands: ["lp user {uuid} parent add elite"],
+      commands: ["lp user {uuid} parent add amethyst"],
     },
     {
       slug: "rank-legend-30", name: "رنک Legend (۳۰ روزه)", cat: "ranks",
@@ -133,30 +133,15 @@ async function seedStore() {
       commands: ["lp user {uuid} parent addtemp legend 30d"],
     },
     {
-      slug: "cosmetic-wings", name: "بال‌های بنفش", cat: "cosmetics",
-      desc: "افکت بال بنفش متحرک پشت کاراکتر در لابی.",
-      price: 180000, kind: "COSMETIC", duration: "permanent",
-      commands: ["tcc cosmetics grant {uuid} wings_purple"],
-    },
-    {
       slug: "prefix-tcc", name: "پریفیکس [TCC]", cat: "prefixes",
       desc: "پریفیکس رسمی طرفداران TCC در چت.",
       price: 95000, kind: "PREFIX", duration: "permanent",
       commands: ["lp user {uuid} meta addprefix 50 \"&d[TCC]&r\""],
     },
-    {
-      slug: "chatcolor-pink", name: "رنگ چت صورتی", cat: "chat-colors",
-      desc: "رنگ صورتی برای متن چت شما.",
-      price: 75000, kind: "CHATCOLOR", duration: "permanent",
-      commands: ["lp user {uuid} meta addchatcolor pink"],
-    },
-    {
-      slug: "tag-ace", name: "تگ «تکاور»", cat: "tags",
-      desc: "تگ نمایشی کنار نام شما.",
-      price: 120000, kind: "TAG", duration: "permanent",
-      commands: ["tcc tags grant {uuid} ace"],
-    },
   ];
+  // NOTE: cosmetics / chat colors / tags are intentionally absent — the shop must
+  // only sell what the server can actually deliver. Re-add them together with the
+  // mechanic that grants them, and the matching command in `commands`.
 
   for (const [i, p] of products.entries()) {
     const cat = await prisma.productCategory.findUnique({ where: { slug: p.cat } });
