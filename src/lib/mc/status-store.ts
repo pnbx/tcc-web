@@ -18,6 +18,12 @@ export type StatusPush = {
   playersMax?: number | null;
   tps?: number | null;
   mspt?: number | null;
+  cpuPercent?: number | null;
+  memoryUsedMb?: number | null;
+  memoryMaxMb?: number | null;
+  diskUsedGb?: number | null;
+  diskTotalGb?: number | null;
+  uptimeSec?: number | null;
   version?: string | null;
   motd?: string[] | null;
   favicon?: string | null;
@@ -32,6 +38,7 @@ export async function writeStatusPush(push: StatusPush): Promise<void> {
     version: push.version ?? null,
     motd: push.motd ?? null,
     favicon: push.favicon ?? null,
+    uptimeSec: push.uptimeSec ?? null,
     source: push.source ?? "push",
   });
   await prisma.serverMetric.create({
@@ -40,6 +47,11 @@ export async function writeStatusPush(push: StatusPush): Promise<void> {
       playersMax: push.playersMax ?? null,
       tps: push.tps ?? null,
       mspt: push.mspt ?? null,
+      cpuPercent: push.cpuPercent ?? null,
+      memoryUsedMb: push.memoryUsedMb ?? null,
+      memoryMaxMb: push.memoryMaxMb ?? null,
+      diskUsedGb: push.diskUsedGb ?? null,
+      diskTotalGb: push.diskTotalGb ?? null,
       raw,
     },
   });
