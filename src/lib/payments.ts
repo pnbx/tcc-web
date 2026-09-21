@@ -137,6 +137,18 @@ export class ZarinpalProvider implements PaymentProvider {
 // the hosted payment page is branded with it. DB prices are Toman (IRT) while
 // Zibal speaks Rial, so every amount crosses the boundary ×10.
 
+/** Zibal (or its relay) can answer with an HTML error page; surface that clearly. */
+async function readJson(res: Response, relayUrl?: string | null): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  try {
+    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    const via = relayUrl ? " (از طریق رله)" : "";
+    const snippet = text.replace(/\s+/g, " ").slice(0, 120);
+    throw new Error(`زیبال${via}: پاسخ نامعتبر (HTTP ${res.status}) — ${snippet}`);
+  }
+}
+
 export class ZibalProvider implements PaymentProvider {
   readonly key = "zibal";
   // Set PAYMENT_PROVIDER_MERCHANT_ID to "zibal" to use the sandbox gateway.
@@ -192,7 +204,7 @@ export class ZibalProvider implements PaymentProvider {
         orderId: input.orderNumber,
       }),
     });
-    const data = (await res.json()) as { trackId?: number; result?: number; message?: string };
+    const data = (await readJson(res, this.relayUrl)) as { trackId?: number; result?: number; message?: string };
     if (data.result !== 100 || !data.trackId) {
       throw new Error(`زیبال: درخواست پرداخت رد شد (کد ${data.result ?? "?"} — ${data.message ?? "بدون توضیح"})`);
     }
@@ -210,7 +222,7 @@ export class ZibalProvider implements PaymentProvider {
       cache: "no-store",
       body: JSON.stringify({ merchant: this.merchant, trackId: Number(input.providerRef) }),
     });
-    const data = (await res.json()) as { result?: number; message?: string; status?: number; amount?: number };
+    const data = (await readJson(res, this.relayUrl)) as { result?: number; message?: string; status?: number; amount?: number };
     // result 100 = verified now, 201 = verified earlier (duplicate callback).
     // status 1 = paid. The echoed amount is Rial — cross-check against the order.
     const paid = data.result === 100 || data.result === 201;
