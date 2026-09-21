@@ -34,7 +34,13 @@ class NullProvider implements PaymentProvider {
 
 export function getPaymentProvider(): PaymentProvider {
   const key = process.env.PAYMENT_PROVIDER || "none";
-  if (key === "zibal") return new ZibalProvider(process.env.PAYMENT_PROVIDER_MERCHANT_ID || "");
+  if (key === "zibal") {
+    return new ZibalProvider(
+      process.env.PAYMENT_PROVIDER_MERCHANT_ID || "",
+      process.env.ZIBAL_RELAY_URL || null,
+      process.env.ZIBAL_RELAY_SECRET || null,
+    );
+  }
   if (key === "zarinpal") {
     return new ZarinpalProvider(
       process.env.ZARINPAL_MERCHANT_ID || process.env.PAYMENT_PROVIDER_MERCHANT_ID || "",
@@ -130,13 +136,39 @@ export class ZarinpalProvider implements PaymentProvider {
 // The merchant account lives under the domain the gateway was registered on;
 // the hosted payment page is branded with it. DB prices are Toman (IRT) while
 // Zibal speaks Rial, so every amount crosses the boundary ×10.
-const ZIBAL_REQUEST_URL = "https://gateway.zibal.ir/v1/request";
-const ZIBAL_VERIFY_URL = "https://gateway.zibal.ir/v1/verify";
 
 export class ZibalProvider implements PaymentProvider {
   readonly key = "zibal";
   // Set PAYMENT_PROVIDER_MERCHANT_ID to "zibal" to use the sandbox gateway.
-  constructor(private readonly merchant: string) {}
+  //
+  // Zibal enforces a merchant IP allowlist, while Vercel has no fixed egress IP.
+  // When ZIBAL_RELAY_URL is set we POST through a tiny PHP relay hosted on the
+  // project's cPanel host (see deploy/zibal-relay/), so Zibal only ever sees that
+  // host's static IP. Without it we fall back to calling Zibal directly.
+  constructor(
+    private readonly merchant: string,
+    private readonly relayUrl?: string | null,
+    private readonly relaySecret?: string | null,
+  ) {}
+
+  /** Resolve a Zibal endpoint — direct, or through the static-IP relay. */
+  private endpoint(ep: "request" | "verify" | "inquiry"): string {
+    const relay = this.relayUrl?.trim();
+    if (!relay) return `https://gateway.zibal.ir/v1/${ep}`;
+    let base = relay.replace(/\/+$/, "");
+    if (!/\.php$/.test(base)) base += "/relay.php";
+    return `${base}?ep=${ep}`;
+  }
+
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      // Zibal's CDN (ArvanCloud) rejects requests without a browser-ish UA.
+      "User-Agent": "TCC-Web/1.0 (+https://site.tccmc.ir)",
+    };
+    if (this.relaySecret) headers["x-relay-secret"] = this.relaySecret;
+    return headers;
+  }
 
   async createPayment(input: {
     orderNumber: string;
@@ -148,13 +180,9 @@ export class ZibalProvider implements PaymentProvider {
     if (!this.merchant) {
       throw new Error("درگاه زیبال پیکربندی نشده است. PAYMENT_PROVIDER_MERCHANT_ID را در .env تنظیم کنید.");
     }
-    const res = await fetch(ZIBAL_REQUEST_URL, {
+    const res = await fetch(this.endpoint("request"), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // Zibal's CDN (ArvanCloud) rejects requests without a browser-ish UA.
-        "User-Agent": "TCC-Web/1.0 (+https://site.tccmc.ir)",
-      },
+      headers: this.headers(),
       cache: "no-store",
       body: JSON.stringify({
         merchant: this.merchant,
@@ -176,12 +204,9 @@ export class ZibalProvider implements PaymentProvider {
 
   async verifyPayment(input: { providerRef: string; amountCents: number }): Promise<{ verified: boolean; raw?: unknown }> {
     if (!this.merchant || !input.providerRef) return { verified: false };
-    const res = await fetch(ZIBAL_VERIFY_URL, {
+    const res = await fetch(this.endpoint("verify"), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "TCC-Web/1.0 (+https://site.tccmc.ir)",
-      },
+      headers: this.headers(),
       cache: "no-store",
       body: JSON.stringify({ merchant: this.merchant, trackId: Number(input.providerRef) }),
     });
