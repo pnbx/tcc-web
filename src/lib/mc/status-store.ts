@@ -65,6 +65,10 @@ export async function readStatusSnapshot(maxAgeMs = FRESH_MS): Promise<ServerSta
     meta = {};
   }
 
+  // "A Minecraft Server" is the stock value from server.properties — showing it
+  // on the site looks like a placeholder, so treat it as "no MOTD".
+  const motd = meta.motd?.filter((line) => line.trim() && line.trim() !== "A Minecraft Server") ?? null;
+
   return {
     online: true,
     state: "online",
@@ -74,7 +78,7 @@ export async function readStatusSnapshot(maxAgeMs = FRESH_MS): Promise<ServerSta
     playersMax: row.playersMax,
     version: meta.version ?? null,
     latencyMs: null,
-    motd: meta.motd ? { clean: meta.motd } : null,
+    motd: motd && motd.length > 0 ? { clean: motd } : null,
     favicon: meta.favicon ?? null,
     source: "push",
     error: null,
