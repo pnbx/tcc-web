@@ -67,13 +67,14 @@ export const PERMISSIONS = {
   "panel.admin": "Access /admin",
   "panel.owner": "Access /owner",
   "panel.developer": "Access /developer",
+  "panel.tester": "Access /tester",
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
 
 export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as PermissionKey[];
 
-export const ROLES = ["MEMBER", "MODERATOR", "ADMIN", "OWNER", "DEVELOPER"] as const;
+export const ROLES = ["MEMBER", "MODERATOR", "TESTER", "ADMIN", "OWNER", "DEVELOPER"] as const;
 export type RoleName = (typeof ROLES)[number];
 
 const ALL = [...PERMISSION_KEYS];
@@ -91,6 +92,9 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<RoleName, string[]> = {
     "users.view", "users.roles", "audit.view", "settings.manage",
     "panel.admin",
   ],
+  // Testers hand out in-game tiers: they may assign, add and edit tier
+  // definitions, but never delete them and nothing outside tiers/players.
+  TESTER: ["panel.tester", "tiers.view", "tiers.assign", "tiers.create", "tiers.edit", "players.view"],
   MODERATOR: ["players.view", "players.ban", "tiers.view", "news.view", "store.view", "orders.view", "panel.admin"],
   MEMBER: [],
 };

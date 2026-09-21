@@ -87,7 +87,24 @@ export async function POST(req: NextRequest) {
       detail: { tier: body.tierName, previousTierId: previous?.tierId ?? null },
     });
 
-    return jsonOk({ assignment: result.id });
+    // Mirror the change in game: the in-game tier system owns the player's
+    // suffix/TAB display, so the site hands it the same /settier command. The
+    // bridge agent runs it within ~10s and the periodic tier sync confirms it.
+    let queuedInGame = false;
+    if (account.username && !account.uuid.startsWith("pending-")) {
+      try {
+        const { enqueueCommand } = await import("@/lib/mc/queue");
+        await enqueueCommand(
+          `settier ${account.username} ${category.key} ${tier.name.toLowerCase()}`,
+          `tester:${auth.user.username}`,
+        );
+        queuedInGame = true;
+      } catch {
+        // best effort: the site-side assignment already succeeded
+      }
+    }
+
+    return jsonOk({ assignment: result.id, queuedInGame });
   } catch (err) {
     return handleApiError(err);
   }
