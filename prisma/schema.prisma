@@ -458,19 +458,34 @@ model AuditLog {
 
 // ───────────── Game-server command queue (pull-based bridge) ─────────────
 // The site and the game host cannot always reach each other (the Iranian game
-// host drops foreign traffic), so commands the server must run — store rank
-// grants, tier rewards — are queued here and collected by the bridge plugin
-// via POST /api/mc/poll, which then reports back through /api/mc/ack.
+// host drops foreign traffic), so work the server must do — store rank grants,
+// file operations, power actions — is queued here and collected by the bridge
+// plugin via POST /api/mc/poll, which reports back through /api/mc/ack.
 model McCommand {
   id        String    @id @default(cuid())
   createdAt DateTime  @default(now())
-  command   String // console command without the leading slash
+  kind      String    @default("command") // command | file.list | file.read | file.write | file.delete | file.mkdir | file.rename | file.search | power.restart | power.stop | power.start
+  command   String // console command (kind=command) or a short label for jobs
+  payload   String? // JSON arguments for job kinds
   source    String? // e.g. "store:TCC-20260921-A3F1"
   status    String    @default("PENDING") // PENDING | SENT | DONE | FAILED
   sentAt    DateTime?
   settledAt DateTime?
-  result    String?
+  result    String? // JSON or text result reported by the agent
 
   @@index([status, createdAt])
   @@index([source])
+}
+
+// Console feed pushed by the bridge plugin, so the owner/developer console
+// works even when the panel is unreachable from wherever the site runs.
+model McLogLine {
+  id        String   @id @default(cuid())
+  ts        DateTime // time parsed from the log line
+  level     String   @default("INFO")
+  thread    String?
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([ts])
 }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth";
 import { handleApiError, jsonError, jsonOk, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
-import * as sandbox from "@/lib/mc/files";
+import * as sandbox from "@/lib/mc/files-agent";
 
 export const dynamic = "force-dynamic";
 

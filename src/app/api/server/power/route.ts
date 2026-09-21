@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getMinecraft } from "@/lib/mc";
+import { agentOnline, runJob } from "@/lib/mc/agent";
 import { requirePermission } from "@/lib/auth";
 import { handleApiError, jsonError, jsonOk, parseBody } from "@/lib/api";
 import { audit } from "@/lib/audit";
@@ -33,13 +34,36 @@ export async function POST(req: NextRequest) {
       return jsonError("برای این عملیات، تأیید صریح لازم است.", 400);
     }
 
-    const mc = getMinecraft();
-    const res =
-      body.action === "start"
-        ? await mc.startServer()
-        : body.action === "stop"
-          ? await mc.stopServer(body.force ?? false)
-          : await mc.restartServer();
+    // Restart/stop go through the in-server agent when it is alive (the agent
+    // restarts the JVM itself). "start" cannot be served by the agent — it is
+    // not running while the server is off — so it needs a reachable panel.
+    let res: { ok: boolean; message?: string };
+    if (body.action !== "start" && (await agentOnline())) {
+      try {
+        await runJob(
+          body.action === "stop" ? "power.stop" : "power.restart",
+          { force: "force" in body ? (body.force ?? false) : false },
+          { label: `power.${body.action}`, timeoutMs: 8000 },
+        );
+        res = { ok: true, message: body.action === "stop" ? "سرور در حال خاموش شدن است." : "سرور در حال ری‌استارت است." };
+      } catch (err) {
+        res = { ok: false, message: (err as Error).message };
+      }
+    } else {
+      const mc = getMinecraft();
+      res =
+        body.action === "start"
+          ? await mc.startServer()
+          : body.action === "stop"
+            ? await mc.stopServer(body.force ?? false)
+            : await mc.restartServer();
+      if (body.action === "start" && !res.ok) {
+        res = {
+          ok: false,
+          message: "سرور خاموش است و ایجنت درون‌سرور هم در دسترس نیست. برای روشن کردن، از پنل پافرلند استارت بزن (یا در پنل یک Schedule برای استارت بگذار).",
+        };
+      }
+    }
 
     await prisma.serverEvent.create({
       data: { type: body.action.toUpperCase(), detail: `by ${auth.user.username}` },

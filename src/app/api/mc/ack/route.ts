@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // POST /api/mc/ack — the bridge plugin reports the result of executed commands.
 const schema = z.object({
   results: z
-    .array(z.object({ id: z.string().min(1).max(60), ok: z.boolean(), result: z.string().max(500).optional() }))
+    .array(z.object({ id: z.string().min(1).max(60), ok: z.boolean(), result: z.string().max(200_000).optional() }))
     .min(1)
     .max(50),
 });

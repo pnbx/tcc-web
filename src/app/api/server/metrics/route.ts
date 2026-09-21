@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getMinecraft } from "@/lib/mc";
+import { readMetricSnapshot } from "@/lib/mc/agent";
 import { requirePermission } from "@/lib/auth";
 import { handleApiError, jsonOk } from "@/lib/api";
 import { prisma } from "@/lib/db";
@@ -12,7 +13,8 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: NextRequest) {
   try {
     await requirePermission("server.metrics");
-    const metrics = await getMinecraft().getMetrics();
+    // Pushed metrics (plugin) win when the game host cannot be reached from here.
+    const metrics = (await readMetricSnapshot()) ?? (await getMinecraft().getMetrics());
 
     if (metrics) {
       await prisma.serverMetric.create({

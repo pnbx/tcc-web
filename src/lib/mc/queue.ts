@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db";
 
-// Outbound commands for the game server (rank grants etc.). Enqueued here so
-// they survive a network that cannot reach the game host directly; the bridge
-// plugin collects and executes them.
+// Outbound work for the game server: console commands (rank grants) and jobs the
+// bridge agent runs locally (file operations, power). Enqueued here so they
+// survive a network that cannot reach the game host directly.
 
 export async function enqueueCommand(command: string, source?: string): Promise<string> {
   const row = await prisma.mcCommand.create({
@@ -11,7 +11,7 @@ export async function enqueueCommand(command: string, source?: string): Promise<
   return row.id;
 }
 
-/** Take up to `limit` pending commands, marking them SENT (at-most-once). */
+/** Take up to `limit` pending jobs, marking them SENT (at-most-once). */
 export async function takePendingCommands(limit = 20) {
   const rows = await prisma.mcCommand.findMany({
     where: { status: "PENDING" },
@@ -23,12 +23,18 @@ export async function takePendingCommands(limit = 20) {
     where: { id: { in: rows.map((r) => r.id) } },
     data: { status: "SENT", sentAt: new Date() },
   });
-  return rows.map((r) => ({ id: r.id, command: r.command, source: r.source }));
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    command: r.command,
+    payload: r.payload ? (JSON.parse(r.payload) as unknown) : null,
+    source: r.source,
+  }));
 }
 
 export async function settleCommand(id: string, ok: boolean, result?: string): Promise<void> {
   await prisma.mcCommand.update({
     where: { id },
-    data: { status: ok ? "DONE" : "FAILED", settledAt: new Date(), result: result?.slice(0, 500) ?? null },
+    data: { status: ok ? "DONE" : "FAILED", settledAt: new Date(), result: result?.slice(0, 60_000) ?? null },
   });
 }
