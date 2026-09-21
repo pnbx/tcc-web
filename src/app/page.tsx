@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCachedStatus, MC_HOST, MC_PORT } from "@/lib/mc";
+import { getCachedStatus, MC_HOST, MC_ADDRESS } from "@/lib/mc";
 import { getSettings } from "@/lib/settings";
 import { getAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -68,7 +68,7 @@ const STEPS = [
     n: "01",
     title: "وارد شو",
     desc: "ماینکرفت جاوا 1.21+ را باز کن و به آدرس سرور وصل شو — بدون مود، بدون تنظیمات اضافه.",
-    code: MC_HOST,
+    code: MC_ADDRESS,
   },
   {
     n: "02",
@@ -196,10 +196,10 @@ export default async function HomePage() {
 
               <Reveal delay={240}>
                 <div className="flex flex-wrap items-center gap-3 mb-10">
-                  <a href={`minecraft://${MC_HOST}`} className="btn btn-primary !px-8 !py-4 text-base hero-cta">
+                  <a href={`minecraft://${MC_ADDRESS}`} className="btn btn-primary !px-8 !py-4 text-base hero-cta">
                     بازی کن — رایگانه
                   </a>
-                  <CopyIp ip={MC_HOST} className="!px-6 !py-4 text-base" />
+                  <CopyIp ip={MC_ADDRESS} className="!px-6 !py-4 text-base" />
                 </div>
               </Reveal>
 
@@ -207,8 +207,7 @@ export default async function HomePage() {
                 <div className="flex items-center gap-3 text-sm">
                   <span className="text-[var(--c-text-faint)] font-ui">آدرس سرور:</span>
                   <span className="ip-address font-semibold text-[var(--c-text)] text-base select-all">
-                    {MC_HOST}
-                    {MC_PORT !== 25565 ? `:${MC_PORT}` : ""}
+                    {MC_ADDRESS}
                   </span>
                 </div>
               </Reveal>
@@ -227,7 +226,7 @@ export default async function HomePage() {
                     )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-heading font-bold truncate">{MC_HOST}</span>
+                        <span className="font-heading font-bold truncate">{MC_ADDRESS}</span>
                         <span className={`badge ${online ? "badge-green" : "badge-red"}`}>{online ? "آنلاین" : "آفلاین"}</span>
                       </div>
                       <div className="mono text-xs text-[var(--c-text-faint)] mt-1">{status.version ?? "—"}</div>

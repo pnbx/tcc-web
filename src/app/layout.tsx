@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { getSettings } from "@/lib/settings";
-import { MC_HOST } from "@/lib/mc";
+import { MC_ADDRESS } from "@/lib/mc";
 
 export const metadata: Metadata = {
   title: {
@@ -52,7 +52,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <p className="text-[var(--c-text-dim)] mt-2 leading-6">
                 شبکه بازی ماینکرفت — لیگ تیر، استور و جامعه‌ی بازیکنان.
               </p>
-              <p className="mono text-xs text-[var(--c-text-faint)] mt-3 select-all">{MC_HOST}</p>
+              <p className="mono text-xs text-[var(--c-text-faint)] mt-3 select-all">{MC_ADDRESS}</p>
             </div>
             <div>
               <div className="font-ui font-semibold text-[var(--c-text)] mb-3">پیوندها</div>

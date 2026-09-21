@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getAuth } from "@/lib/auth";
-import { getCachedStatus, MC_HOST } from "@/lib/mc";
+import { getCachedStatus, MC_ADDRESS } from "@/lib/mc";
 import { formatKd, formatNumber, formatPlaytime, timeAgo, formatDate } from "@/components/format";
 
 export const dynamic = "force-dynamic";
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
       {/* server status strip */}
       <div className="card p-5 mb-8 flex flex-wrap items-center gap-4">
         <span className={`inline-block w-2.5 h-2.5 rounded-full ${status.online ? "bg-[var(--c-green)]" : "bg-[var(--c-red)]"}`} />
-        <span className="mono text-sm select-all">{MC_HOST}</span>
+        <span className="mono text-sm select-all">{MC_ADDRESS}</span>
         <span className="badge">{status.online ? "آنلاین" : "آفلاین"}</span>
         {status.online && (
           <span className="num text-sm text-[var(--c-text-dim)]">
