@@ -43,15 +43,27 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 const SETTINGS_KEY = "app";
 
+// Settings are read on nearly every render; a short in-process cache keeps the
+// hot path off the database without making admin edits feel stale.
+let settingsCache: { at: number; value: AppSettings } | null = null;
+const SETTINGS_TTL_MS = 30_000;
+
 export async function getSettings(): Promise<AppSettings> {
+  const now = Date.now();
+  if (settingsCache && now - settingsCache.at < SETTINGS_TTL_MS) return settingsCache.value;
+
   const row = await prisma.setting.findUnique({ where: { key: SETTINGS_KEY } });
-  if (!row) return DEFAULT_SETTINGS;
-  try {
-    const parsed = JSON.parse(row.value) as Partial<AppSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed, fonts: { ...DEFAULT_SETTINGS.fonts, ...(parsed.fonts ?? {}) } };
-  } catch {
-    return DEFAULT_SETTINGS;
+  let value = DEFAULT_SETTINGS;
+  if (row) {
+    try {
+      const parsed = JSON.parse(row.value) as Partial<AppSettings>;
+      value = { ...DEFAULT_SETTINGS, ...parsed, fonts: { ...DEFAULT_SETTINGS.fonts, ...(parsed.fonts ?? {}) } };
+    } catch {
+      value = DEFAULT_SETTINGS;
+    }
   }
+  settingsCache = { at: now, value };
+  return value;
 }
 
 export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
@@ -66,6 +78,7 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
     create: { key: SETTINGS_KEY, value: JSON.stringify(next) },
     update: { value: JSON.stringify(next) },
   });
+  settingsCache = { at: Date.now(), value: next };
   return next;
 }
 

@@ -455,3 +455,22 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([action])
 }
+
+// ───────────── Game-server command queue (pull-based bridge) ─────────────
+// The site and the game host cannot always reach each other (the Iranian game
+// host drops foreign traffic), so commands the server must run — store rank
+// grants, tier rewards — are queued here and collected by the bridge plugin
+// via POST /api/mc/poll, which then reports back through /api/mc/ack.
+model McCommand {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  command   String // console command without the leading slash
+  source    String? // e.g. "store:TCC-20260921-A3F1"
+  status    String    @default("PENDING") // PENDING | SENT | DONE | FAILED
+  sentAt    DateTime?
+  settledAt DateTime?
+  result    String?
+
+  @@index([status, createdAt])
+  @@index([source])
+}

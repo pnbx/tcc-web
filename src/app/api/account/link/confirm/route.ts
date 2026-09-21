@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { handleApiError, jsonError, jsonOk, parseBody } from "@/lib/api";
-import { timingSafeEqualStr } from "@/lib/crypto";
+import { mcTokenAuthorized } from "@/lib/mc/auth";
 import { audit } from "@/lib/audit";
 
 const schema = z.object({
@@ -16,11 +16,7 @@ const schema = z.object({
 // /tccweb link <code> in-game, so ownership is proven by the server itself.
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get("x-tcc-token") ?? "";
-    const expected = process.env.BRIDGE_TOKEN ?? "";
-    if (!expected || !timingSafeEqualStr(token, expected)) {
-      return jsonError("Forbidden", 403);
-    }
+    if (!mcTokenAuthorized(req)) return jsonError("Forbidden", 403);
 
     const { code, uuid, username } = await parseBody(req, schema);
 

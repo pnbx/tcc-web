@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getCachedStatus, MC_HOST, MC_ADDRESS } from "@/lib/mc";
+import { unstable_cache } from "next/cache";
+import { getCachedStatus, MC_ADDRESS } from "@/lib/mc";
 import { getSettings } from "@/lib/settings";
 import { getAuth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -10,6 +11,39 @@ import { Reveal, CountUp } from "@/components/Reveal";
 import { formatNumber, formatDate, priceLabel } from "@/components/format";
 
 export const dynamic = "force-dynamic";
+
+// Public landing data changes rarely; cache it so a cold function does not pay
+// six database round-trips on every visit.
+const loadLandingData = unstable_cache(
+  async () => {
+    const [latestNews, topTiers, storeProducts, modeCategories, productCount] = await Promise.all([
+      prisma.newsArticle.findMany({
+        where: { published: true },
+        orderBy: { publishedAt: "desc" },
+        take: 3,
+        include: { author: { select: { username: true } }, category: { select: { name: true } } },
+      }).catch(() => []),
+      prisma.playerTier.findMany({
+        where: { category: { key: "sword" } },
+        include: { account: { select: { username: true } }, tier: true, category: { select: { name: true } } },
+        orderBy: { updatedAt: "desc" },
+        take: 6,
+      }).catch(() => []),
+      prisma.product.findMany({
+        where: { available: true },
+        orderBy: { position: "asc" },
+        take: 3,
+      }).catch(() => []),
+      prisma.tierCategory.findMany({
+        select: { id: true, key: true, name: true, _count: { select: { tiers: true, playerTiers: true } } },
+      }).catch(() => []),
+      prisma.product.count({ where: { available: true } }).catch(() => 0),
+    ]);
+    return { latestNews, topTiers, storeProducts, modeCategories, productCount };
+  },
+  ["landing-data"],
+  { revalidate: 300, tags: ["landing"] },
+);
 
 const GAME_MODES = [
   {
@@ -113,31 +147,13 @@ export default async function HomePage() {
     getAuth(),
   ]);
 
-  const [latestNews, topTiers, storeProducts, modeCategories, productCount] = await Promise.all([
-    prisma.newsArticle.findMany({
-      where: { published: true },
-      orderBy: { publishedAt: "desc" },
-      take: 3,
-      include: { author: { select: { username: true } }, category: { select: { name: true } } },
-    }).catch(() => []),
-    prisma.playerTier.findMany({
-      where: { category: { key: "sword" } },
-      include: { account: { select: { username: true } }, tier: true, category: { select: { name: true } } },
-      orderBy: { updatedAt: "desc" },
-      take: 6,
-    }).catch(() => []),
-    prisma.product.findMany({
-      where: { available: true },
-      orderBy: { position: "asc" },
-      take: 3,
-    }).catch(() => []),
-    prisma.tierCategory.findMany({
-      select: { id: true, key: true, name: true, _count: { select: { tiers: true, playerTiers: true } } },
-    }).catch(() => []),
-    prisma.product.count({ where: { available: true } }).catch(() => 0),
-  ]);
+  const { latestNews, topTiers, storeProducts, modeCategories, productCount } = await loadLandingData();
 
   const online = status.online;
+  const state = status.state ?? (online ? "online" : "offline");
+  const stateLabel = state === "online" ? "آنلاین" : state === "unknown" ? "نامشخص" : "آفلاین";
+  const stateBadge = state === "online" ? "badge-green" : state === "unknown" ? "badge-amber" : "badge-red";
+  const lastSeen = status.reportedAt ? formatDate(status.reportedAt) : null;
   const totalTiers = modeCategories.reduce((a, c) => a + c._count.tiers, 0);
   const rankedPlayers = modeCategories.reduce((a, c) => a + c._count.playerTiers, 0);
   const podium = topTiers.slice(0, 3);
@@ -171,13 +187,15 @@ export default async function HomePage() {
             <div>
               <Reveal>
                 <div className="inline-flex items-center gap-2.5 rounded-full glass px-4 py-2 text-xs font-ui font-semibold text-[#c4b5fd] mb-7">
-                  <span className={`live-dot ${online ? "live-dot-on" : "live-dot-off"}`} />
-                  {online
+                  <span className={`live-dot ${state === "online" ? "live-dot-on" : state === "unknown" ? "live-dot-unknown" : "live-dot-off"}`} />
+                  {state === "online"
                     ? `${formatNumber(status.playersOnline ?? 0)} بازیکن همین حالا آنلاین است`
-                    : "سرور در حال راه‌اندازی است"}
+                    : state === "unknown"
+                      ? "وضعیت زنده در حال بروزرسانی است"
+                      : "سرور در حال راه‌اندازی است"}
                   <span className="w-px h-3 bg-[rgba(139,92,246,0.4)]" />
                   <span className="text-[var(--c-text-faint)] mono">1.21.4</span>
-                  {online && <span className="eq" aria-hidden><i /><i /><i /><i /></span>}
+                  {state === "online" && <span className="eq" aria-hidden><i /><i /><i /><i /></span>}
                 </div>
               </Reveal>
 
@@ -227,7 +245,7 @@ export default async function HomePage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-heading font-bold truncate">{MC_ADDRESS}</span>
-                        <span className={`badge ${online ? "badge-green" : "badge-red"}`}>{online ? "آنلاین" : "آفلاین"}</span>
+                        <span className={`badge ${stateBadge}`}>{stateLabel}</span>
                       </div>
                       <div className="mono text-xs text-[var(--c-text-faint)] mt-1">{status.version ?? "—"}</div>
                     </div>
@@ -236,15 +254,23 @@ export default async function HomePage() {
                   <div className="grid grid-cols-2 gap-3 mb-5">
                     <div className="stat-box">
                       <div className="stat-num">
-                        {online ? <CountUp value={status.playersOnline ?? 0} /> : "—"}
+                        {status.playersOnline != null ? <CountUp value={status.playersOnline} /> : "—"}
                       </div>
-                      <div className="stat-label">از {online ? formatNumber(status.playersMax ?? 0) : "—"} بازیکن</div>
+                      <div className="stat-label">
+                        {status.playersMax != null ? `از ${formatNumber(status.playersMax)} بازیکن` : "بازیکن"}
+                      </div>
                     </div>
                     <div className="stat-box">
                       <div className="stat-num">{status.latencyMs != null ? <CountUp value={status.latencyMs} /> : "—"}</div>
                       <div className="stat-label">میلی‌ثانیه پینگ</div>
                     </div>
                   </div>
+
+                  {lastSeen && state !== "online" && (
+                    <p className="text-[11px] text-[var(--c-text-faint)] mb-4 font-ui">
+                      آخرین گزارش سرور: {lastSeen}
+                    </p>
+                  )}
 
                   {status.motd?.clean?.length ? (
                     <div className="rounded-lg bg-[#07060c] border hairline p-3">

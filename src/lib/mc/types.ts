@@ -11,6 +11,8 @@ import type { PlayerStatistics } from "@/generated/prisma/client";
 
 export type ServerStatus = {
   online: boolean;
+  /** "unknown" = we could not reach the server at all (no data either way). */
+  state?: "online" | "offline" | "unknown";
   host: string;
   port: number;
   playersOnline: number | null;
@@ -19,9 +21,11 @@ export type ServerStatus = {
   latencyMs: number | null;
   motd?: { clean: string[]; html?: string } | null;
   favicon?: string | null; // base64 PNG from SLP; null when unavailable
-  source: "slp" | "bridge" | "rcon";
+  source: "slp" | "bridge" | "rcon" | "pterodactyl" | "push";
   error?: string | null;
   checkedAt: string; // ISO timestamp
+  /** For pushed snapshots: when the game server last reported. */
+  reportedAt?: string | null;
 };
 
 export type LiveMetrics = {

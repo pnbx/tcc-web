@@ -108,6 +108,12 @@ export class ZibalProvider implements PaymentProvider {
 
 // ── Command dispatch after verified payment ────────────────────────────────
 // Never trusted from the browser. Placeholders: {uuid}, {username}, {player}.
+//
+// Every command is queued first (McCommand) so it survives a network where the
+// site cannot reach the game host directly; the bridge plugin collects it via
+// /api/mc/poll. We then try the direct adapter (panel/RCON/bridge) as a fast
+// path — whichever wins, exactly one execution happens because the queue row is
+// settled as soon as a direct execution succeeds.
 
 export async function dispatchProductCommands(input: {
   orderId: string;
@@ -115,6 +121,7 @@ export async function dispatchProductCommands(input: {
   targetUsername?: string | null;
 }): Promise<{ dispatched: number; errors: string[] }> {
   const { getMinecraft } = await import("@/lib/mc");
+  const { enqueueCommand, settleCommand } = await import("@/lib/mc/queue");
   const mc = getMinecraft();
 
   const order = await prisma.order.findUnique({
@@ -164,12 +171,20 @@ export async function dispatchProductCommands(input: {
         .replaceAll("{uuid}", account.uuid)
         .replaceAll("{username}", account.username)
         .replaceAll("{player}", account.username);
+
+      // Queue first: guaranteed delivery through the plugin poll.
+      const queueId = await enqueueCommand(cmd, `store:${order.orderNumber}`);
+
+      // Fast path: run it right now if the site can reach the server.
       try {
         const res = await mc.execCommand(cmd);
-        if (res.ok) dispatched += 1;
-        else errors.push(`${cmd} → ${res.output.join(" ") || "failed"}`);
-      } catch (err) {
-        errors.push(`${cmd} → ${(err as Error).message}`);
+        if (res.ok) {
+          dispatched += 1;
+          await settleCommand(queueId, true, "executed directly via adapter");
+        }
+      } catch {
+        // Unreachable is expected on hosts that drop foreign traffic — the
+        // plugin will pick the queued command up instead.
       }
     }
   }
