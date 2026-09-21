@@ -18,10 +18,10 @@ export * from "./types";
 
 export const MC_HOST = process.env.MINECRAFT_SERVER_HOST || "tccmc.ir";
 export const MC_PORT = Number(process.env.MINECRAFT_SERVER_PORT || 25565);
-// Player-facing connect address. The network runs behind a Velocity proxy on a
-// non-default port, so the port must travel with the host everywhere players
-// copy it or a launcher link is built.
-export const MC_ADDRESS = MC_PORT === 25565 ? MC_HOST : `${MC_HOST}:${MC_PORT}`;
+// Player-facing address. The proxy listens on an internal port, but players
+// connect with the plain domain (DNS/proxy handles the port), so the site must
+// show and copy exactly that — while status probes keep using MC_PORT.
+export const MC_ADDRESS = MC_HOST;
 
 export async function publicStatus(): Promise<ServerStatus> {
   return slpPing(MC_HOST, MC_PORT, 1500);

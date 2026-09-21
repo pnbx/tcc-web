@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuth, hasPermission } from "@/lib/auth";
+import { LogoutButton } from "@/components/LogoutButton";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const auth = await getAuth();
@@ -29,7 +30,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/dashboard" className="btn btn-ghost !py-1.5 text-xs">پنل کاربری</Link>
             {can("panel.owner") && <Link href="/owner" className="btn btn-ghost !py-1.5 text-xs">مالک</Link>}
             {can("panel.developer") && <Link href="/developer" className="btn btn-ghost !py-1.5 text-xs">توسعه‌دهنده</Link>}
-            <Link href="/logout" className="btn btn-ghost !py-1.5 text-xs">خروج</Link>
+            <LogoutButton />
           </div>
         </div>
       </header>
