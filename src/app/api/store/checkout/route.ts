@@ -85,7 +85,12 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return jsonOk({ orderNumber: order.orderNumber, redirectUrl: session.redirectUrl });
+      // Send the buyer through our azuraai.ir host first: the gateway validates
+      // the referrer domain, and the merchant is registered for azuraai.ir.
+      const hopOrigin = new URL(callbackBase).origin;
+      const redirectUrl = `${hopOrigin}/pay/start?to=${encodeURIComponent(session.redirectUrl)}`;
+
+      return jsonOk({ orderNumber: order.orderNumber, redirectUrl });
     } catch (err) {
       await prisma.order.update({ where: { id: order.id }, data: { status: "FAILED" } });
       return jsonError((err as Error).message, 503);
