@@ -55,15 +55,19 @@ const hex = (c: string | undefined, fallback: string): string => {
   return m ? `#${m[1].toLowerCase()}` : fallback;
 };
 
-/** Everything that is not a whitelisted tag or a safe character is dropped. */
+/** Keeps only whitelisted tags **in place** (order matters: the label must stay
+ *  inside its gradient) and strips every character that could break the console
+ *  command the prefix is injected into. */
 export function sanitizeMiniMessage(input: string): string {
-  const tags = input.match(/<[^<>]*>/g) ?? [];
-  const safeTags = tags.filter((t) => ALLOWED_TAGS.test(t)).join("");
-  const text = input
-    .replace(/<[^<>]*>/g, "")
-    .replace(/["'`;$\\\n\r\t]/g, "")
-    .slice(0, 60);
-  return (safeTags + text).slice(0, 160);
+  let out = "";
+  for (const part of input.match(/<[^<>]*>|[^<>]+/g) ?? []) {
+    if (part.startsWith("<")) {
+      if (ALLOWED_TAGS.test(part)) out += part;
+    } else {
+      out += part.replace(/["'`;$\\\n\r\t]/g, "");
+    }
+  }
+  return out.trim().slice(0, 160);
 }
 
 function render(spec: Spec): { miniMessage: string; preview: PrefixDesign["preview"]; plain: string } {
