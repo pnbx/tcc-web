@@ -6,6 +6,7 @@ import { handleApiError, jsonError, jsonOk, parseBody } from "@/lib/api";
 import { getCachedStatus, MC_ADDRESS, MC_HOST, MC_PORT } from "@/lib/mc";
 import { agentOnline, readConsoleFeed, readMetricSnapshot } from "@/lib/mc/agent";
 import { enqueueCommand } from "@/lib/mc/queue";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ function authorized(req: NextRequest): boolean {
 
 const commandSchema = z.object({ command: z.string().min(1).max(300) });
 
-type Action = "status" | "console" | "command" | "tiers" | "orders" | "news" | "players" | "overview";
+type Action = "status" | "console" | "command" | "tiers" | "orders" | "news" | "players" | "overview" | "adminmode";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ action: string }> }) {
   try {
@@ -113,6 +114,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ action: str
         });
       }
 
+      case "adminmode": {
+        // persistent flag for the bot: is this Telegram admin in AI-admin mode?
+        const id = url.searchParams.get("id") ?? "";
+        const row = await prisma.setting.findUnique({ where: { key: `tg_adminmode:${id}` } });
+        return jsonOk({ on: row?.value === "true" });
+      }
+
       default:
         return jsonError(`unknown action: ${action}`, 404);
     }
@@ -126,7 +134,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
   try {
     if (!authorized(req)) return jsonError("unauthorized", 401);
     const { action } = (await ctx.params) as { action: Action };
-    if (action !== "command") return jsonError("only /api/bot/command accepts POST", 405);
+
+    if (action === "adminmode") {
+      const body = (await req.json().catch(() => ({}))) as { id?: string; on?: boolean };
+      const id = String(body.id ?? "");
+      if (!id) return jsonError("id required", 400);
+      await prisma.setting.upsert({
+        where: { key: `tg_adminmode:${id}` },
+        create: { key: `tg_adminmode:${id}`, value: body.on ? "true" : "false" },
+        update: { value: body.on ? "true" : "false" },
+      });
+      await audit({ actorName: `telegram:${id}`, action: body.on ? "bot.aiadmin_on" : "bot.aiadmin_off" });
+      return jsonOk({ on: Boolean(body.on) });
+    }
+
+    if (action !== "command") return jsonError("only /api/bot/command and /api/bot/adminmode accept POST", 405);
 
     const { command } = await parseBody(req, commandSchema);
     const id = await enqueueCommand(command, `telegram:${req.headers.get("x-bot-actor") ?? "bot"}`);
