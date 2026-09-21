@@ -24,7 +24,7 @@ export default function LoginPage() {
     const json = await res.json();
     setLoading(false);
     if (json.ok) {
-      router.push("/dashboard");
+      router.push(json.data?.redirectTo ?? "/dashboard");
       router.refresh();
       return;
     }

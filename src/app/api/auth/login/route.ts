@@ -49,7 +49,18 @@ export async function POST(req: NextRequest) {
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await audit({ actorId: user.id, actorName: user.username, action: "auth.login", ip });
 
-    const res = jsonOk({ username: user.username, needTotp: false });
+    // Land staff roles straight on their panel; everyone else on the dashboard.
+    const roleNames = (await prisma.userRole.findMany({
+      where: { userId: user.id },
+      include: { role: { select: { name: true } } },
+    })).map((ur) => ur.role.name);
+    const redirectTo =
+      roleNames.includes("OWNER") ? "/owner"
+      : roleNames.includes("DEVELOPER") ? "/developer"
+      : roleNames.includes("ADMIN") ? "/admin"
+      : "/dashboard";
+
+    const res = jsonOk({ username: user.username, needTotp: false, redirectTo, roles: roleNames });
     setSessionCookie(res, token, expiresAt);
     return res;
   } catch (err) {
