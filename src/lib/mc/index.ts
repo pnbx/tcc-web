@@ -131,6 +131,7 @@ function createStatusOnlyAdapter(): MinecraftServerAdapter {
 let statusCache: { at: number; status: ServerStatus } | null = null;
 const STATUS_TTL_MS = 20_000;
 const PROBE_TIMEOUT_MS = 1500;
+const STALE_OK_MS = 10 * 60_000; // show the last report instead of probing
 
 export async function getCachedStatus(): Promise<ServerStatus> {
   const { readStatusSnapshot, readLatestSnapshotAnyAge } = await import("./status-store");
@@ -143,11 +144,35 @@ export async function getCachedStatus(): Promise<ServerStatus> {
     return pushed;
   }
 
-  // 2. Memory cache
+  // 2. A recent-but-not-fresh report: trust it and stay honest about the gap.
+  //    Skipping the probe here keeps pages fast on hosts we cannot reach.
+  const last = await readLatestSnapshotAnyAge();
+  const lastAge = last ? Date.now() - new Date(last.at).getTime() : Infinity;
+  if (last && lastAge < STALE_OK_MS) {
+    const stale: ServerStatus = {
+      online: true,
+      state: "unknown",
+      host: MC_HOST,
+      port: MC_PORT,
+      playersOnline: last.playersOnline,
+      playersMax: last.playersMax,
+      version: null,
+      latencyMs: null,
+      motd: null,
+      favicon: null,
+      source: "push",
+      error: null,
+      checkedAt: new Date().toISOString(),
+      reportedAt: last.at,
+    };
+    statusCache = { at: Date.now(), status: stale };
+    return stale;
+  }
+
+  // 3. Nothing recent: probe, but never for longer than PROBE_TIMEOUT_MS
   const now = Date.now();
   if (statusCache && now - statusCache.at < STATUS_TTL_MS) return statusCache.status;
 
-  // 3. Probe, but never for longer than PROBE_TIMEOUT_MS
   const probe = getMinecraft().getStatus();
   const status = await Promise.race([
     probe,
@@ -159,33 +184,33 @@ export async function getCachedStatus(): Promise<ServerStatus> {
             state: "unknown",
             host: MC_HOST,
             port: MC_PORT,
-            playersOnline: null,
-            playersMax: null,
+            playersOnline: last?.playersOnline ?? null,
+            playersMax: last?.playersMax ?? null,
             version: null,
             latencyMs: null,
             motd: null,
             favicon: null,
             source: "slp",
-            error: "پاسخی از سرور دریافت نشد (شبکه) — وضعیت نامشخص است.",
+            error: "پاسخی از سرور دریافت نشد — وضعیت نامشخص است.",
             checkedAt: new Date().toISOString(),
+            reportedAt: last?.at ?? null,
           }),
         PROBE_TIMEOUT_MS,
       ),
     ),
   ]);
 
-  // A host that refuses/times out is "unknown", not "offline": we simply
-  // cannot see it from here (the game host firewalls foreign traffic).
+  // A host that refuses/times out is "unknown", not "offline": we simply cannot
+  // see it from here (the game host firewalls foreign traffic).
   let final = status;
-  if (!status.online) {
+  if (status.state === "unknown") {
+    final = { ...status, reportedAt: status.reportedAt ?? last?.at ?? null };
+  } else if (!status.online) {
     const unreachable = /timeout|ECONNREFUSED|ENETUNREACH|EHOSTUNREACH|ETIMEDOUT|unreachable/i.test(status.error ?? "");
-    const last = await readLatestSnapshotAnyAge();
     final = {
       ...status,
       state: unreachable ? "unknown" : "offline",
-      error: unreachable
-        ? "وضعیت سرور از این شبکه قابل بررسی نیست (سرور ایرانی ترافیک خارجی را می‌بندد)."
-        : status.error,
+      error: unreachable ? "وضعیت سرور از این شبکه قابل بررسی نیست (سرور ایرانی ترافیک خارجی را می‌بندد)." : status.error,
       reportedAt: last?.at ?? null,
       playersOnline: last?.playersOnline ?? status.playersOnline,
       playersMax: last?.playersMax ?? status.playersMax,
