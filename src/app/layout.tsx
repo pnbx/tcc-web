@@ -4,6 +4,10 @@ import "./globals.css";
 import { getSettings } from "@/lib/settings";
 import { MC_ADDRESS } from "@/lib/mc";
 
+// Typography/settings come from the database, so nothing may be prerendered at
+// build time (a build must never depend on a live pooler connection).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: {
     default: "TCC Minecraft — شبکه ماینکرفت TCC",

@@ -52,7 +52,7 @@ export async function getSettings(): Promise<AppSettings> {
   const now = Date.now();
   if (settingsCache && now - settingsCache.at < SETTINGS_TTL_MS) return settingsCache.value;
 
-  const row = await prisma.setting.findUnique({ where: { key: SETTINGS_KEY } });
+  const row = await prisma.setting.findUnique({ where: { key: SETTINGS_KEY } }).catch(() => null);
   let value = DEFAULT_SETTINGS;
   if (row) {
     try {
