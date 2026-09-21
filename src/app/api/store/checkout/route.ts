@@ -60,13 +60,18 @@ export async function POST(req: NextRequest) {
     try {
       // The provider must send the user back to the verify API (which then
       // redirects to the result page) — never to a page that trusts the query.
+      //
+      // PAYMENT_CALLBACK_URL wins when set: Zibal only accepts a callback on the
+      // domain the merchant was registered under (result 106), so that domain can
+      // forward here while the site keeps its own callback route.
       const base = process.env.PAYMENT_PROVIDER_CALLBACK_BASE || new URL(req.url).origin;
+      const callbackBase = process.env.PAYMENT_CALLBACK_URL?.trim() || `${base}/api/store/callback`;
       const session = await provider.createPayment({
         orderNumber: order.orderNumber,
         amountCents: totalCents,
         currency: "IRT",
         description: `TCC Store — ${order.orderNumber}`,
-        callbackUrl: `${base}/api/store/callback?order=${encodeURIComponent(order.orderNumber)}`,
+        callbackUrl: `${callbackBase}${callbackBase.includes("?") ? "&" : "?"}order=${encodeURIComponent(order.orderNumber)}`,
       });
 
       await prisma.payment.create({
