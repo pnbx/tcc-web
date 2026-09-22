@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { getSettings } from "@/lib/settings";
 import { MC_ADDRESS } from "@/lib/mc";
+import { CartProvider } from "@/components/cart";
 
 // Typography/settings come from the database, so nothing may be prerendered at
 // build time (a build must never depend on a live pooler connection).
@@ -46,7 +47,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="fa" dir="rtl">
       <body>
         <FontSlotOverrides />
-        {children}
+        <CartProvider>{children}</CartProvider>
         <footer className="border-t hairline mt-16">
           <div className="max-w-6xl mx-auto px-4 py-10 grid gap-8 md:grid-cols-3 text-sm">
             <div>

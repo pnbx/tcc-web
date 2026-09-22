@@ -1,0 +1,12 @@
+[
+  {
+    "file": "/config/paper-global.yml",
+    "find": "  velocity:\n    enabled: true\n    online-mode: true\n    secret: YmU3MDM1Y2Jl",
+    "replace": "  velocity:\n    enabled: false\n    online-mode: true\n    secret: YmU3MDM1Y2Jl"
+  },
+  {
+    "file": "/server.properties",
+    "find": "enforce-secure-profile=true",
+    "replace": "enforce-secure-profile=false"
+  }
+]

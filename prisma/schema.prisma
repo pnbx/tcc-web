@@ -31,6 +31,13 @@ model User {
   updatedAt     DateTime @updatedAt
   lastLoginAt   DateTime?
 
+  // Telegram is REQUIRED for members: rank expiry notices are delivered there.
+  telegramId        String?   @unique // numeric Telegram user id, stored as text
+  telegramUsername  String?
+  telegramLinkedAt  DateTime?
+  telegramLinkCode  String?   @unique
+  telegramLinkExpires DateTime?
+
   minecraftAccounts MinecraftAccount[]
   roles             UserRole[]
   sessions          Session[]
@@ -43,6 +50,7 @@ model User {
   tierAssignments   PlayerTier[]       @relation("TierAssigner")
   auditLogs         AuditLog[]
   apiTokens         ApiToken[]
+  redemptions       RedeemRedemption[]
 
   @@index([usernameLower])
 }
@@ -296,6 +304,8 @@ model Product {
   duration    String? // e.g. "30d", "permanent"
   available   Boolean   @default(true)
   commands    String    @default("[]") // JSON array of MC commands; {player}, {uuid} placeholders
+  rankKey     String? // LuckPerms group this product grants (RANK/TAG products)
+  perks       String    @default("[]") // JSON: human-readable perks shown before buying
   position    Int       @default(0)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -303,8 +313,46 @@ model Product {
   category     ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   orderItems   OrderItem[]
   userProducts UserProduct[]
+  durations    ProductDuration[]
 
   @@index([categoryId, available])
+}
+
+// A rank sold as 1 / 3 / 12 months: the shop picks a duration, checkout re-reads
+// the price from here, fulfilment grants exactly these days.
+model ProductDuration {
+  id         String  @id @default(cuid())
+  productId  String
+  months     Int // 1, 3, 12
+  days       Int // days actually granted (e.g. 30 / 90 / 365)
+  priceCents Int
+  label      String  @default("") // site label, e.g. "۳ ماهه"
+  active     Boolean @default(true)
+  position   Int     @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, months])
+  @@index([productId, active])
+}
+
+// Per-rank identity + the LuckPerms permissions that make the rank real.
+// Seeded from src/lib/ranks.ts and editable in the owner panel.
+model RankProfile {
+  id          String   @id @default(cuid())
+  key         String   @unique // LuckPerms group name
+  name        String
+  order       Int      @default(0)
+  color       String   @default("#a855f7")
+  icon        String   @default("✦")
+  tagline     String   @default("")
+  perks       String   @default("[]") // JSON array: human readable perks
+  permissions String   @default("[]") // JSON array: LuckPerms nodes granted to the group
+  commands    String   @default("[]") // JSON array: extra commands run on grant
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([order])
 }
 
 model Order {
@@ -338,6 +386,12 @@ model OrderItem {
   unitPriceCents Int
   targetUsername String? // MC account the product applies to
   customCommands String? // JSON array; the prefix studio stores the exact command for the approved design
+  durationMonths Int? // chosen duration (1 / 3 / 12) for rank products
+  durationDays   Int? // days granted, copied from ProductDuration at checkout
+  durationLabel  String? // snapshot of the chosen label for the receipt
+  customTag      String? // AI-designed custom tag (display text) for TAG/RANK products
+  customDesign   String? // JSON: the full approved design (colors, effects, note)
+  redeemCode     String? // code applied to this order item (audit)
 
   order    Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product  Product @relation(fields: [productId], references: [id])
@@ -370,11 +424,59 @@ model UserProduct {
   grantedAt  DateTime  @default(now())
   expiresAt  DateTime?
   active     Boolean   @default(true)
+  durationMonths Int? // 1 / 3 / 12 when the product was sold per duration
+  rankKey    String? // LuckPerms group to revoke when this expires
+  expiryNoticeAt DateTime? // last "expiring soon" notice we sent
+  revokedAt  DateTime?
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
 
   @@index([userId, active])
+  @@index([expiresAt, active])
+}
+
+// ───────────────────────────── Redeem codes ─────────────────────────────
+
+// Created by an owner/developer for a bundle such as
+// "mythic + 1 month, 10 redemptions, 10% off".
+model RedeemCode {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  label           String    @default("")
+  kind            String    @default("BUNDLE") // RANK, DISCOUNT, BUNDLE
+  rankKey         String? // rank granted on redemption
+  months          Int? // duration of the granted rank
+  discountPercent Int       @default(0)
+  maxUses         Int       @default(1) // "10 players"
+  usedCount       Int       @default(0)
+  perUser         Int       @default(1)
+  expiresAt       DateTime?
+  active          Boolean   @default(true)
+  createdBy       String?
+  note            String    @default("")
+  createdAt       DateTime  @default(now())
+
+  redemptions RedeemRedemption[]
+
+  @@index([active])
+}
+
+model RedeemRedemption {
+  id              String   @id @default(cuid())
+  codeId          String
+  userId          String
+  orderId         String?
+  discountPercent Int      @default(0)
+  rankKey         String?
+  months          Int?
+  usedAt          DateTime @default(now())
+
+  code RedeemCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([codeId, userId])
+  @@index([userId])
 }
 
 // ───────────────────────────── Player data ─────────────────────────────

@@ -2,10 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuth, hasPermission } from "@/lib/auth";
 import { LogoutButton } from "@/components/LogoutButton";
+import { mustConnectTelegram } from "@/lib/telegram";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
+
+  // Telegram is REQUIRED for members (rank expiry notices are delivered there).
+  // This is skipped automatically while the bot token is not configured, so the
+  // rollout can never lock everyone out.
+  if (mustConnectTelegram(auth.user)) redirect("/connect-telegram?next=/dashboard");
 
   const can = (p: string) => hasPermission(auth.permissions, p);
 

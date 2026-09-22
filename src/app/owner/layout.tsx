@@ -14,6 +14,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
     { href: "/owner/console", label: "کنسول" },
     { href: "/owner/monitoring", label: "پایش" },
     { href: "/owner/players", label: "بازیکنان" },
+    { href: "/owner/redeem", label: "کدهای ریدیم" },
     { href: "/owner/logs", label: "لاگ‌ها" },
     { href: "/owner/settings", label: "تنظیمات" },
   ];
