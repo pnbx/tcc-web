@@ -18,7 +18,12 @@ export default async function PlayersPage({
   const auth = await getAuth();
 
   const where = {
-    linkedAt: { not: null },
+    // everyone the server knows about: linked accounts, plus anyone with stats or a tier
+    OR: [
+      { linkedAt: { not: null } },
+      { playerStatistics: { isNot: null } },
+      { playerTiers: { some: {} } },
+    ],
     ...(q ? { username: { contains: q } } : {}),
   };
 

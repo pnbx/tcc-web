@@ -3,6 +3,7 @@ import { z } from "zod";
 import { handleApiError, jsonError, jsonOk, parseBody } from "@/lib/api";
 import { mcTokenAuthorized } from "@/lib/mc/auth";
 import { appendConsoleLines } from "@/lib/mc/agent";
+import { recordDuelResults } from "@/lib/duels";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,8 @@ export async function POST(req: NextRequest) {
     if (!mcTokenAuthorized(req)) return jsonError("unauthorized", 401);
     const { lines } = await parseBody(req, schema);
     await appendConsoleLines(lines);
+    // duel lines carry wins/losses, which vanilla statistics do not track
+    void recordDuelResults(lines.map((line) => line.message)).catch(() => undefined);
     return jsonOk({ received: lines.length });
   } catch (err) {
     return handleApiError(err);
