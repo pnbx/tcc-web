@@ -3,9 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { handleApiError, jsonOk, parseBody, guardRateLimit } from "@/lib/api";
-import { createLinkCode, deepLink, telegramConfigured, botUsername, linkExpiryHint } from "@/lib/telegram";
+import { createLinkCode, deepLink, telegramConfigured, botUsername, linkExpiryHint, sendTelegramMessage } from "@/lib/telegram";
 
-const schema = z.object({ action: z.enum(["start", "unlink", "status"]).default("status") });
+const schema = z.object({ action: z.enum(["start", "unlink", "status", "test"]).default("status") });
 
 // Telegram is REQUIRED for members — it is where rank-expiry notices go.
 // GET  /api/account/telegram  -> status (+ a fresh code/deep link when starting)
@@ -38,6 +38,17 @@ export async function POST(req: NextRequest) {
       }
       const { code, deepLink: link, expiresAt } = await createLinkCode(auth.user.id);
       return jsonOk({ ok: true, code, deepLink: link, expiresAt, hint: linkExpiryHint(), bot: botUsername() });
+    }
+
+    if (action === "test") {
+      if (!auth.user.telegramId) {
+        return jsonOk({ ok: false, linked: false, error: "حسابت به تلگرام وصل نیست." });
+      }
+      const res = await sendTelegramMessage(
+        auth.user.telegramId,
+        `🔔 <b>تست اطلاع‌رسانی TCC</b>\nاز این به بعد پایان رنک‌ها را همین‌جا خبردار می‌شوی.\nپنل: <a href="https://site.tccmc.ir/dashboard">site.tccmc.ir/dashboard</a>`,
+      );
+      return jsonOk({ ok: res.ok, linked: true, error: res.error ?? null });
     }
 
     if (action === "unlink") {
