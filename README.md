@@ -1,39 +1,86 @@
 # TCC Minecraft — Web Platform
 
-Official website + player portal + competitive tier database + store + server control center for the **TCC Minecraft** network.
+**English** · [فارسی](README.fa.md)
 
-- Minecraft server: `tccmc.ir`
-- Website: `site.tccmc.ir`
-- Stack: **Next.js 15 (App Router, TypeScript)** · **Prisma 7** · **Supabase Postgres** · **Tailwind CSS 4**
-- Language: Persian-first UI (RTL) with bilingual-ready typography
+**The player portal, competitive tier database and store for the [TCC Minecraft](https://tccmc.ir) PvP network.**
+
+Persian-first (RTL) community platform: accounts, tiers, ranks, store, staff panels and a live view of the game server — all driven by real server data, never mock numbers.
+
+[![CI](https://github.com/pnbx/tcc-web/actions/workflows/ci.yml/badge.svg)](https://github.com/pnbx/tcc-web/actions/workflows/ci.yml)
+[![Next.js](https://img.shields.io/badge/Next.js-15.5-000?logo=nextdotjs)](https://nextjs.org)
+[![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma)](https://prisma.io)
+[![Postgres](https://img.shields.io/badge/Postgres-Supabase-336791?logo=postgresql&logoColor=white)](https://supabase.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+> سرور: `tccmc.ir` · سایت: `site.tccmc.ir`
+> پلتفرم فارسی‌محور (RTL) برای شبکه‌ی PvP ماینکرفت TCC — پورتال بازیکن، دیتابیس تیرها، فروشگاه و پنل‌های مدیریتی.
 
 ---
 
-## Quick start (local)
+## Contents
 
-```bash
-npm install
-cp .env.example .env          # then edit values
-npx prisma db push            # apply the schema to Supabase Postgres
-npx prisma db seed            # roles, permissions, tiers, store categories/products
-npm run dev
-```
+- [What this is](#what-this-is)
+- [Feature tour](#feature-tour)
+- [Architecture](#architecture)
+- [Quick start](#quick-start)
+- [Environment variables](#environment-variables)
+- [Deployment](#deployment)
+- [Project layout](#project-layout)
+- [Security model](#security-model)
+- [Screenshots](#screenshots)
+- [Related repositories](#related-repositories)
+- [License](#license)
 
-Then open `http://localhost:3000/setup` to create the initial **Owner** and **Developer** accounts.
-This requires `SETUP_KEY` from your `.env` — only someone with shell access can bootstrap the platform.
+---
 
-## Production deployment
+## What this is
 
-```bash
-npm run build
-npm start                     # behind a reverse proxy (nginx/caddy) at site.tccmc.ir
-```
+TCC is a competitive Minecraft PvP network. Players are ranked into **tiers** by testers, buy **ranks** and **cosmetics** from a store, and follow **news** and **player stats**. This repository is the website those players and the staff team actually use.
 
-Checklist:
-1. **Supabase Postgres** is the database: set `SUPABASE_DB_URL` (connection string from the dashboard, non-pooler or session-pooler URI) — `prisma db push` applies the schema; no SQLite involved.
-2. Generate real secrets: `openssl rand -base64 48` for `SESSION_SECRET` / `JWT_SECRET`.
-3. Set `SETUP_KEY`, finish `/setup`, then remove `SETUP_KEY` from the environment if you want to hard-disable re-bootstrap (setup is also marked complete in the DB).
-4. Point `PAYMENT_PROVIDER_CALLBACK_BASE` at `https://site.tccmc.ir`.
+It is a single Next.js application (App Router, React Server Components) with:
+
+- a public side — landing page, news, tier list, player profiles, store,
+- a member side — dashboard, profiles, purchases, account linking,
+- a staff side — four role-scoped panels (tester, admin, owner, developer),
+- a private REST surface the Minecraft plugin and the Telegram bot talk to.
+
+Everything runs against Postgres (Supabase) through Prisma, and every piece of server data is read from the live game server. **The site never fabricates server state.**
+
+---
+
+## Feature tour
+
+**Accounts & access**
+- Argon2id password hashing, opaque DB-backed sessions (SHA-256 hashed tokens), 7-day expiry, revocation on password change or ban.
+- Optional TOTP two-factor, login throttling by IP + username, API burst limits.
+- RBAC built from roles × granular permissions, with a wildcard for the owner. `requirePermission(...)` is enforced server-side on every privileged route — the UI only hides controls.
+- Bootstrap flow at `/setup` guarded by `SETUP_KEY`, then marked complete in the database.
+- Mandatory Telegram linking for members, so rank-expiry notices can actually reach them.
+
+**Competitive side**
+- Tier categories, tiers, player history and tier tests; testers award tiers from a dedicated panel.
+- Automatic tier sync: a tier granted in game appears on the site without the tester touching the web.
+- Player profiles with real statistics (kills, deaths, playtime) fed by PlaceholderAPI through the bridge.
+- Duel results derived from console lines — wins/losses are computed, not entered.
+
+**Store**
+- Basket, review-before-pay, 1 / 3 / 12-month durations per rank.
+- Product commands dispatched to the server with `{uuid}` / `{username}` / `{player}` placeholders and recorded per user.
+- Redeem codes (rank, duration, seats, discount) created in the owner/dev panel.
+- **AI rank + prefix studio**: a member describes the tag they want, the model designs it, the output is sanitised to MiniMessage and priced, with moderation that rejects abusive requests.
+- Server-to-server payment verification, so an order is only `PAID` after the provider confirms it.
+
+**Staff**
+- Tester panel: tiers and tests.
+- Admin: news, players, store, tiers, server.
+- Owner: console, logs, monitoring, redeem codes, settings, server.
+- Developer: console, file manager (sandboxed), plugins, monitoring, system.
+- Audit log on every sensitive action: actor, action, target, detail, IP.
+
+**Ops**
+- Live status from the game server via three adapters (see below), plus Minecraft Server List Ping as a zero-credential fallback — the homepage shows true online state even with no keys configured.
+- Daily cron for rank expiry (`/api/cron/expiry`).
+- Persian typography system with five remappable font slots, self-hosted fonts, and LTR isolation for technical strings.
 
 ---
 
@@ -41,150 +88,166 @@ Checklist:
 
 ```
 Browser
-   ↓  (HTTPS only)
-TCC Web Frontend (Next.js App Router, RSC)
-   ↓  (internal API routes, session cookie + RBAC on every privileged endpoint)
-TCC Backend (route handlers)
-   ├── Auth (Argon2id, sessions, TOTP, login throttling)
-   ├── RBAC (roles × granular permissions, wildcard for OWNER)
-   ├── Tiers / News / Store / Players
-   ├── Payments (provider-verified server-to-server)
-   ├── Audit log
-   └── Minecraft integration (adapter pattern)
-             ↓
-   TCC Bridge plugin (preferred)  |  RCON (firewalled fallback)  |  SLP (status only)
-             ↓
-   TCC Minecraft Server (tccmc.ir)
+   │  HTTPS only
+   ▼
+Next.js App Router  (RSC + route handlers, Vercel)
+   ├── Auth        Argon2id · sessions · TOTP · throttling
+   ├── RBAC        roles × permissions, owner wildcard
+   ├── Domain      tiers · news · store · players · redeem · rank studio
+   ├── Payments    provider-verified, server-to-server
+   ├── Audit       every sensitive action
+   └── Minecraft   adapter pattern ↓
+             ┌──────────────┬───────────────┬──────────────┬───────────────┐
+          Bridge plugin   Pterodactyl      RCON         Server List Ping
+        (status, console,   (panel API:   (commands)     (status only,
+         power, files,      status, CPU,                   always works)
+         plugins, stats)    console, power)
+             │
+        TCC game server (Paper) + TccBridge plugin + Skript content
 ```
 
-### Minecraft integration
-
-The site **never fakes server data**. Three adapters implement `MinecraftServerAdapter`
-(`src/lib/mc/types.ts`):
+Adapter priority is **bridge → Pterodactyl → RCON → status-only**; the contract lives in [`src/lib/mc/types.ts`](src/lib/mc/types.ts).
 
 | Adapter | Capabilities | Config |
 |---|---|---|
-| **Bridge** (preferred) | status, TPS/MSPT/CPU/RAM/disk/net, live console, commands, power, files, plugins, player stats | `BRIDGE_URL`, `BRIDGE_TOKEN` |
-| **Pterodactyl** | status, CPU/RAM/disk/net, uptime, console (from `logs/latest.log`), commands, power, files, plugins (from jar names) | `PTERO_PANEL_URL`, `PTERO_API_KEY`, `PTERO_SERVER_ID` |
-| **RCON** (fallback) | status (via SLP), commands, player count | `RCON_HOST/PORT/PASSWORD` — **never expose publicly** |
-| **Status-only** | real public status via Server List Ping | nothing needed |
+| **Bridge** (preferred) | status, TPS/MSPT/CPU/RAM/disk/net, console, commands, power, files, plugins, player stats | `BRIDGE_URL`, `BRIDGE_TOKEN` |
+| **Pterodactyl** | status, resource usage, uptime, console from `logs/latest.log`, commands, power, files, plugin list | `PTERO_PANEL_URL`, `PTERO_API_KEY`, `PTERO_SERVER_ID` |
+| **RCON** (fallback) | commands, player count, status via SLP | `RCON_HOST`, `RCON_PORT`, `RCON_PASSWORD` — never expose publicly |
+| **Status-only** | real public status via Server List Ping | none |
 
-Adapter priority: bridge → pterodactyl → rcon → status-only.
-
-Status always works: the site speaks the Minecraft **Server List Ping** protocol
-directly (`src/lib/mc/slp.ts`), so the homepage shows the true online state of
-`tccmc.ir` even with zero credentials configured.
-
-**TCC Bridge plugin** — deploy a small plugin on the Minecraft server that exposes
-`/api/v1/*` endpoints (status, metrics, console, command, power, files, plugins,
-players/stats) on **localhost only**, authenticated by the shared
-`X-TCC-Token` header (`BRIDGE_TOKEN`). The website's `/api/account/link/confirm`
-endpoint is the matching counterpart for in-game account linking
-(`/tccweb link <code>`). Reference contract: `src/lib/mc/types.ts`.
-
-**Player statistics** are stored in `player_statistics` and updated only by the
-integration (`fetchPlayerStats` → upsert). No fake numbers are ever seeded.
-
-### Account linking (no Minecraft passwords on the web)
-
-1. Player logs into the website, enters their Minecraft username at
-   `/dashboard/profile`.
-2. The site mints a one-time code (15 min TTL).
-3. The player runs `/tccweb link <code>` **in game**.
-4. The bridge plugin verifies the player is online and calls
-   `POST /api/account/link/confirm` with the shared token.
-5. The site stores `uuid + username` linked to the web account.
-
-Minecraft passwords never touch the website; the game server is the only party
-that can prove ownership.
-
-### Payments
-
-- Frontend creates an order → backend re-prices it from the DB → provider
-  session is created → user is redirected to `gateway.zibal.ir/start/{trackId}`.
-- The provider calls back to `/api/store/callback?order=...`; verification happens
-  **server-to-server** through the `PaymentProvider` interface
-  (`src/lib/payments.ts`). Only a verified callback flips an order to `PAID`,
-  after which the user is redirected to `/store/result/{orderNumber}`.
-- **Zibal is implemented** (`ZibalProvider`): prices are stored as Toman (IRT)
-  and sent to Zibal as Rial (×10). Set `PAYMENT_PROVIDER_MERCHANT_ID` to the
-  merchant from the Zibal panel of the domain the gateway was registered under
-  (the hosted payment page shows that domain), or `"zibal"` for the sandbox.
-- After verification, product commands (e.g. `lp user {uuid} parent add elite`)
-  are dispatched to the server via the adapter, with placeholders
-  `{uuid}` / `{username}` / `{player}`, and recorded in `user_products`.
-- Other providers plug in behind the same interface.
+Deep dives: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/MINECRAFT.md](docs/MINECRAFT.md) · [docs/PAYMENTS.md](docs/PAYMENTS.md) · [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
 
-## Persian typography system
+## Quick start
 
-Five font slots are CSS variables, remappable from **Owner → Settings** without
-touching components:
+Requires **Node.js 20+** and a Postgres database (Supabase free tier is fine).
 
-| Slot | Variable | Default intent |
-|---|---|---|
-| Display / hero | `--font-display` | Dana |
-| Headings | `--font-heading` | Peyda |
-| UI / nav / buttons | `--font-ui` | Peyda |
-| Body / long text | `--font-body` | Vazirmatn |
-| Technical | `--font-mono` | system mono |
+```bash
+git clone https://github.com/pnbx/tcc-web.git
+cd tcc-web
+npm install
+cp .env.example .env          # fill in the values (see below)
+npx prisma db push            # create the schema
+npx prisma db seed            # roles, permissions, tiers, store catalog
+npm run dev
+```
 
-Bundled now (self-hosted, WOFF2, `font-display: swap`): **Vazirmatn** (variable
-+ 4 static weights) and **Estedad** (variable, Arabic+Latin subsets) — both OFL.
+Open <http://localhost:3000/setup> and create the initial **Owner** and **Developer** accounts. That route requires `SETUP_KEY` from your `.env`, so only someone with shell access can bootstrap the platform.
 
-**Peyda, Yekan Bakh and Dana are commercial fonts** (FontIran). They are
-*declared* in `globals.css` but only load if you drop your licensed files into
-`public/fonts/` (e.g. `Dana-Regular.woff2`, `Peyda-Bold.woff2`,
-`YekanBakh-Regular.woff2`). Until then the stacks fall through gracefully to
-Vazirmatn/Estedad. Nothing is hotlinked from CDNs.
+Useful scripts:
 
-RTL rules: `<html lang="fa" dir="rtl">` globally; technical content (IPs,
-commands, UUIDs, console, file paths) stays LTR via `.mono`, `.ltr`, `.num`,
-`.ip-address` helpers (`direction: ltr; unicode-bidi: isolate`).
+| Command | What it does |
+|---|---|
+| `npm run dev` | Next dev server with Turbopack |
+| `npm run build` / `npm start` | production build and server |
+| `npm run lint` | ESLint (next/core-web-vitals) |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npx prisma studio` | browse the database |
+
+---
+
+## Environment variables
+
+`.env.example` documents every key. Grouped by concern:
+
+| Group | Keys |
+|---|---|
+| Database | `SUPABASE_DB_URL`, `SUPABASE_POOLER_URL`, `DATABASE_URL` |
+| Supabase | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL` |
+| Sessions | `SESSION_SECRET`, `JWT_SECRET` |
+| Bootstrap | `SETUP_KEY`, `OWNER_USERNAME`, `DEVELOPER_INITIAL_PASSWORD` |
+| Minecraft | `MINECRAFT_SERVER_HOST`, `MINECRAFT_SERVER_PORT`, `BRIDGE_URL`, `BRIDGE_TOKEN`, `MC_INGEST_TOKEN`, `RCON_*`, `PTERO_*`, `SERVER_FILES_ROOT` |
+| Payments | `PAYMENT_PROVIDER`, `PAYMENT_PROVIDER_MERCHANT_ID`, `PAYMENT_PROVIDER_CALLBACK_BASE`, `ZIBAL_RELAY_URL`, `ZIBAL_RELAY_SECRET` |
+| Integrations | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `BOT_API_TOKEN`, `OPENROUTER_API_KEYS`, `OPENROUTER_MODELS`, `CRON_SECRET` |
+
+Generate real secrets with `openssl rand -base64 48`. Never commit `.env`; it is gitignored, and the repository has never contained one.
+
+What needs a real credential to light up:
+
+| Feature | Requires |
+|---|---|
+| Live console, power, file manager, TPS/MSPT/CPU/RAM | Bridge plugin, or Pterodactyl |
+| Player statistics on profiles | Bridge stats sync (PlaceholderAPI) |
+| Real payments | A configured provider (Zibal is implemented) |
+| Commercial Persian fonts (Peyda/Dana/Yekan Bakh) | Licensed `.woff2` in `public/fonts/` |
+
+Everything else — auth, RBAC, news, tiers, store catalog, audit, public server status — works out of the box.
+
+---
+
+## Deployment
+
+Standard `next build` + `next start` behind a reverse proxy, or Vercel. `vercel.json` pins `syd1` and the daily expiry cron.
+
+Checklist:
+
+1. Postgres reachable; apply `prisma/schema.prisma` (plus `prisma/manual/*.sql` for additive expansions).
+2. Real values for `SESSION_SECRET` and `JWT_SECRET`.
+3. Set `SETUP_KEY`, finish `/setup`, then remove it to hard-disable re-bootstrap.
+4. Point `PAYMENT_PROVIDER_CALLBACK_BASE` at the public origin the provider accepts.
+5. `CRON_SECRET` in place if you schedule hourly expiry yourself.
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the step-by-step, including the Supabase pooler caveat.
+
+---
+
+## Project layout
+
+```
+prisma/
+  schema.prisma          # 34-model relational schema
+  seed.ts                # RBAC + tiers + categories + products (no fake stats)
+  manual/                # additive SQL for in-place expansions
+src/lib/                 # auth, RBAC, audit, settings, payments, ranks, studio, telegram
+src/lib/mc/              # Minecraft adapters: bridge, pterodactyl, rcon, slp, files sandbox
+src/app/                 # public pages, dashboard, admin, owner, developer, tester
+src/app/api/             # REST endpoints (auth, news, tiers, players, store, server, bot)
+deploy/zibal-relay/      # PHP relay for providers that pin the callback domain
+docs/                    # architecture, deployment, Minecraft integration, payments
+```
 
 ---
 
 ## Security model
 
-- **Passwords**: Argon2id (`@node-rs/argon2`). Never logged, never returned by
-  any API, never displayed. The developer/owner credentials are created at
-  `/setup` and changeable; nothing is hardcoded.
-- **Sessions**: opaque random tokens, SHA-256 hashed in DB, HttpOnly + SameSite
-  cookies, 7-day expiry, revocation on password change/ban.
-- **RBAC**: every privileged API route calls `requirePermission(...)` server
-  side. The UI only *hides* controls; hiding is never the enforcement.
-- **Rate limiting**: login throttling (IP + username) and API burst limits.
-- **Audit log**: every sensitive action (commands, power, files, tiers, roles,
-  payments, settings) records actor/action/target/detail/IP.
-- **File sandbox** (developer panel): all paths resolve inside
-  `SERVER_FILES_ROOT`; `..` traversal, drive letters and symlink escapes are
-  rejected; sensitive files (env/keys/credentials/ops.json/whitelist.json) are
-  blocked unless `FILES_ALLOW_SENSITIVE=1`.
-- **Headers**: CSP, X-Frame-Options, nosniff, Referrer-Policy via middleware.
-- **Secrets**: only in `.env` (gitignored). `.env.example` documents every key.
+- **Passwords**: Argon2id. Never logged, never returned by any API, never displayed.
+- **Sessions**: opaque random tokens, SHA-256 hashed at rest, HttpOnly + SameSite cookies.
+- **RBAC**: enforced on the server; the UI only hides what you cannot use.
+- **Rate limiting**: login throttling plus API burst limits.
+- **Audit log**: every sensitive action recorded with actor, target, detail and IP.
+- **File sandbox**: paths resolve inside `SERVER_FILES_ROOT`; traversal, drive letters and symlink escapes are rejected; sensitive files are blocked unless explicitly allowed.
+- **Headers**: CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` via middleware.
+- **Secrets**: `.env` only, documented in `.env.example`, never in git.
 
-## Project layout
+Found something? See [SECURITY.md](SECURITY.md) — please report privately, not as a public issue.
+
+---
+
+## Screenshots
+
+_Add yours to `docs/screenshots/` and link them here: homepage, tier list, store, dashboard, staff console._
 
 ```
-prisma/schema.prisma      # 24-table relational schema
-prisma/seed.ts            # RBAC + tiers + categories + products (no fake stats)
-src/lib/                  # auth, RBAC, audit, rate-limit, settings, payments
-src/lib/mc/               # Minecraft adapters: slp, rcon, bridge, files sandbox
-src/app/api/              # REST endpoints (auth, news, tiers, players, store, server, files)
-src/app/(public pages)    # home, news, tiers, players, store, login, setup
-src/app/dashboard/        # member panel
-src/app/admin|owner|developer/  # staff panels
+docs/screenshots/home.png        docs/screenshots/tiers.png
+docs/screenshots/store.png       docs/screenshots/console.png
 ```
 
-## What needs real credentials to light up
+---
 
-| Feature | Requires |
+## Related repositories
+
+| Repository | What it is |
 |---|---|
-| Live console, power controls, file manager, TPS/MSPT/CPU/RAM | TCC Bridge plugin (or RCON for commands only) |
-| Player statistics on profiles | Bridge `players/stats` sync |
-| Real payments | `PAYMENT_PROVIDER_*` + provider implementation |
-| Commercial Persian fonts | Licensed woff2 files in `public/fonts/` |
+| [`tcc-bridge`](https://github.com/pnbx/tcc-bridge) | Paper plugin that pushes status and pulls commands |
+| [`tcc-bot`](https://github.com/pnbx/tcc-bot) | Telegram assistant and Mini App for staff and players |
+| [`TCC-Launcher`](https://github.com/pnbx/TCC-Launcher) | Fabric-first launcher for the TCC client |
+| `tcc-skript` | Battle Pass, cosmetics and quest content for the server |
 
-Everything else (auth, RBAC, news, tiers, store catalog, audit, public real-time
-server status) works out of the box.
+---
+
+## License
+
+[MIT](LICENSE) © TCC Minecraft
+
+The fonts bundled in `public/fonts/` keep their own licenses (Vazirmatn and Estedad are OFL). Peyda, Dana and Yekan Bakh are commercial and are **not** included — drop in your own licensed files if you have them.

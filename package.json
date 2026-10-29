@@ -2,12 +2,40 @@
   "name": "tcc-web",
   "version": "0.1.0",
   "private": true,
+  "description": "Player portal, tier database and store for the TCC Minecraft PvP network.",
+  "keywords": [
+    "minecraft",
+    "nextjs",
+    "prisma",
+    "pvp",
+    "community",
+    "persian",
+    "rtl",
+    "store",
+    "rbac"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnbx/tcc-web.git"
+  },
+  "homepage": "https://site.tccmc.ir",
+  "bugs": {
+    "url": "https://github.com/pnbx/tcc-web/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@fontsource-variable/estedad": "^5.3.0",

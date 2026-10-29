@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/pnbx/tcc-web/security/advisories/new
+    about: Report a vulnerability privately, never in a public issue.
+  - name: TCC community
+    url: https://site.tccmc.ir
+    about: Questions about the network, ranks or the store.

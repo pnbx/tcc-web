@@ -1,0 +1,53 @@
+name: Bug report
+description: Something on the site, panels or API is broken.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems belong in [SECURITY.md](../blob/main/SECURITY.md), not in a public issue.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. sign in as a tester
+        2. open /tester/tiers
+        3. assign a tier
+        4. ... nothing appears on the profile
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Auth / sessions
+        - Tiers & testers
+        - Store & payments
+        - Players & stats
+        - Staff panels (admin / owner / developer)
+        - Minecraft bridge or panel integration
+        - Telegram / bot API
+        - UI / RTL / fonts
+        - Build & deployment
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      description: The commit hash, or the deploy you saw it on.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Server logs, console output, network response. Remove tokens and player data first.
+      render: shell
